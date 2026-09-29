@@ -22,8 +22,10 @@
 # COMMAND ----------
 # MAGIC %md
 # MAGIC ## 0. Setup + tunable knobs
-# MAGIC `TARGET_MONTH` is the check-in month we price for. Default **7 (July)** — the peak — so the demo
-# MAGIC shows dramatic (but capped) uplift. Change it to see prices soften in the off-season.
+# MAGIC We price for **all 12 months** — one row per `(property_id, month)` — so the app can price any
+# MAGIC requested check-in date, and so we can show the same villa costing different amounts across the
+# MAGIC year (the real proof of dynamic pricing). `DEMO_MONTH` is only used to *filter the sanity checks*
+# MAGIC below (July = peak, the punchiest view); it does NOT limit what we compute.
 # MAGIC The weights/caps below are the *entire* pricing policy — all in one place, all explainable.
 
 # COMMAND ----------
@@ -31,7 +33,7 @@ SOURCE = "samples.wanderbricks"
 CAT, SCH = "hackathon", "data_axle"
 spark.sql(f"USE CATALOG {CAT}"); spark.sql(f"USE SCHEMA {SCH}")
 
-TARGET_MONTH = 7          # check-in month we price for (1-12). 7 = July (peak) for demo punch.
+DEMO_MONTH = 7            # ONLY for eyeballing results below (7 = July peak). Not a compute limit.
 
 # --- pricing policy (fractions of base price; all capped so prices stay sane) ---
 SEASON_MIN, SEASON_MAX = -0.20, 0.60   # season can swing price -20%..+60%
@@ -39,10 +41,10 @@ COMP_TOWARD_MEDIAN     = 0.30          # if under-priced vs destination, close 3
 COMP_CAP               = 0.15          # ...but never more than +15% of base from comps
 FX_WEIGHT              = 0.50          # capture half of a currency's weakening as uplift
 FX_PCT_CAP             = 10.0          # ignore FX moves beyond ±10% (outliers)
-HOLIDAY_UPLIFT         = 0.08          # +8% if a public holiday falls in the target month
+HOLIDAY_UPLIFT         = 0.08          # +8% if a public holiday falls in that month
 PRICE_FLOOR, PRICE_CEIL = 0.75, 1.90   # final suggested price clamped to 0.75x..1.9x base
 
-print(f"Pricing for check-in month = {TARGET_MONTH}")
+print(f"Pricing ALL 12 months. Sanity checks below filter to DEMO_MONTH = {DEMO_MONTH}")
 
 # COMMAND ----------
 # MAGIC %md
@@ -66,33 +68,42 @@ display(spark.table("dim_country"))
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ## 2. Seasonality — destination × month demand index
-# MAGIC For each destination, how busy is each month vs. that destination's *own* average month?
+# MAGIC ## 2. Seasonality — destination × month demand index (ALL months)
+# MAGIC For each destination *and each month*, how busy is it vs. that destination's *own* average month?
 # MAGIC `season_index = bookings_in_month / avg_bookings_per_month`. So 3.0 means "3× a normal month."
-# MAGIC We read the index for `TARGET_MONTH` per destination. **This is the core of the thesis.**
+# MAGIC We keep all 12 months so every property can be priced for any check-in month. To guarantee a
+# MAGIC complete grid (some destination/month combos may have zero bookings), we cross-join
+# MAGIC destinations × months 1–12 and treat missing months as 0 bookings. **This is the core of the thesis.**
 
 # COMMAND ----------
 spark.sql(f"""
 CREATE OR REPLACE TEMP VIEW v_dest_season AS
-WITH by_month AS (
+WITH months AS (SELECT explode(sequence(1, 12)) AS mth),
+dests AS (SELECT DISTINCT destination_id FROM {SOURCE}.properties),
+grid AS (SELECT d.destination_id, m.mth FROM dests d CROSS JOIN months m),
+by_month AS (
   SELECT p.destination_id, month(b.check_in) AS mth, count(*) AS bookings
   FROM {SOURCE}.bookings b
   JOIN {SOURCE}.properties p ON b.property_id = p.property_id
   GROUP BY p.destination_id, month(b.check_in)
 ),
+filled AS (
+  SELECT g.destination_id, g.mth, coalesce(bm.bookings, 0) AS bookings
+  FROM grid g LEFT JOIN by_month bm
+    ON bm.destination_id = g.destination_id AND bm.mth = g.mth
+),
 dest_avg AS (
   SELECT destination_id, avg(bookings) AS avg_month_bookings
-  FROM by_month GROUP BY destination_id
+  FROM filled GROUP BY destination_id
 )
-SELECT m.destination_id,
-       m.bookings AS target_month_bookings,
+SELECT f.destination_id, f.mth,
+       f.bookings AS month_bookings,
        round(a.avg_month_bookings, 1) AS avg_month_bookings,
-       round(m.bookings / a.avg_month_bookings, 2) AS season_index
-FROM by_month m
-JOIN dest_avg a ON m.destination_id = a.destination_id
-WHERE m.mth = {TARGET_MONTH}
+       round(f.bookings / nullif(a.avg_month_bookings, 0), 2) AS season_index
+FROM filled f
+JOIN dest_avg a ON f.destination_id = a.destination_id
 """)
-display(spark.sql("SELECT * FROM v_dest_season ORDER BY season_index DESC LIMIT 10"))
+display(spark.sql(f"SELECT * FROM v_dest_season WHERE mth = {DEMO_MONTH} ORDER BY season_index DESC LIMIT 10"))
 
 # COMMAND ----------
 # MAGIC %md
@@ -161,10 +172,9 @@ FROM bk
 # COMMAND ----------
 spark.sql(f"""
 CREATE OR REPLACE TABLE gold_property_features AS
-WITH holiday_flag AS (   -- does a public holiday fall in TARGET_MONTH for the destination's country?
-  SELECT DISTINCT dc.country
+WITH holiday_by_month AS (   -- which (country, month) combos have a public holiday?
+  SELECT DISTINCT dc.country, month(to_date(h.holiday_date)) AS mth
   FROM holidays h JOIN dim_country dc ON dc.country = h.country
-  WHERE month(to_date(h.holiday_date)) = {TARGET_MONTH}
 ),
 base AS (
   SELECT
@@ -172,21 +182,22 @@ base AS (
     p.destination_id, d.destination, d.country,
     p.property_latitude AS lat, p.property_longitude AS lon,
     dc.currency,
+    s.mth,                                        -- <-- the month we're pricing for (1..12)
     coalesce(s.season_index, 1.0)                 AS season_index,
     coalesce(dp.dest_median_price, p.base_price)  AS dest_median_price,
     coalesce(pop.popularity_pct, 0.0)             AS popularity_pct,
     coalesce(occ.occupancy_pct, 0.0)              AS occupancy_pct,
     coalesce(fx.pct_change_yoy, 0.0)              AS fx_pct_change,
-    CASE WHEN hf.country IS NOT NULL THEN true ELSE false END AS holiday_in_month
+    CASE WHEN hm.country IS NOT NULL THEN true ELSE false END AS holiday_in_month
   FROM {SOURCE}.properties p
   JOIN {SOURCE}.destinations d ON p.destination_id = d.destination_id
   LEFT JOIN dim_country dc     ON dc.country = d.country
-  LEFT JOIN v_dest_season s    ON s.destination_id = p.destination_id
+  JOIN v_dest_season s         ON s.destination_id = p.destination_id     -- 12 rows per property
   LEFT JOIN v_dest_price dp    ON dp.destination_id = p.destination_id
   LEFT JOIN v_prop_pop pop     ON pop.property_id = p.property_id
   LEFT JOIN v_prop_occ occ     ON occ.property_id = p.property_id
   LEFT JOIN fx_rates fx        ON fx.currency = dc.currency
-  LEFT JOIN holiday_flag hf    ON hf.country = d.country
+  LEFT JOIN holiday_by_month hm ON hm.country = d.country AND hm.mth = s.mth
 ),
 uplifts AS (
   SELECT *,
@@ -198,12 +209,13 @@ uplifts AS (
                ELSE 0 END, 2) AS comp_uplift,
     -- FX: only a weakening destination currency (positive pct) gives uplift, capped, weighted
     round(base_price * greatest(0.0, least({FX_PCT_CAP}, fx_pct_change)) / 100.0 * {FX_WEIGHT}, 2) AS fx_uplift,
-    -- HOLIDAY: flat % if a holiday lands in the target month
+    -- HOLIDAY: flat % if a holiday lands in that month
     round(CASE WHEN holiday_in_month THEN base_price * {HOLIDAY_UPLIFT} ELSE 0 END, 2) AS holiday_uplift
   FROM base
 )
 SELECT
-  property_id, title, property_type, destination_id, destination, country, currency, lat, lon,
+  property_id, mth AS target_month,
+  title, property_type, destination_id, destination, country, currency, lat, lon,
   base_price,
   season_index, dest_median_price, popularity_pct, occupancy_pct, fx_pct_change, holiday_in_month,
   season_uplift, comp_uplift, fx_uplift, holiday_uplift,
@@ -212,39 +224,73 @@ SELECT
     greatest(base_price * {PRICE_FLOOR},
       least(base_price * {PRICE_CEIL},
             base_price + season_uplift + comp_uplift + fx_uplift + holiday_uplift)), 2
-  ) AS suggested_price,
-  {TARGET_MONTH} AS target_month
+  ) AS suggested_price
 FROM uplifts
 """)
-print("gold_property_features rows:", spark.table("gold_property_features").count())
+_n = spark.table("gold_property_features").count()
+print(f"gold_property_features rows: {_n:,}  (~18k properties x 12 months)")
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ### Sanity-check the waterfall on real listings
-# MAGIC Look at a few Phuket properties: each term should read like the mock, and `suggested_price`
-# MAGIC should equal `base + the four uplifts` (unless clamped).
+# MAGIC ### Sanity-check the waterfall on real listings (DEMO_MONTH)
+# MAGIC Look at a few Phuket properties for the peak month: each term should read like the mock, and
+# MAGIC `suggested_price` should equal `base + the four uplifts` (unless clamped).
 
 # COMMAND ----------
-display(spark.sql("""
+display(spark.sql(f"""
 SELECT title, base_price, season_uplift, comp_uplift, fx_uplift, holiday_uplift,
        suggested_price,
        round(100*(suggested_price-base_price)/base_price,1) AS uplift_pct
 FROM gold_property_features
-WHERE destination = 'Phuket'
+WHERE destination = 'Phuket' AND target_month = {DEMO_MONTH}
 ORDER BY uplift_pct DESC LIMIT 8
 """))
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ### How much revenue upside across the marketplace?
-# MAGIC The one-number business case for the target month.
+# MAGIC ### ⭐ The dynamic-pricing proof — ONE villa across all 12 months
+# MAGIC This is the demo beat that hardcoding a single month would have hidden: the *same* listing
+# MAGIC priced month by month. Watch `suggested_price` rise into the peak and soften off-season.
 
 # COMMAND ----------
 display(spark.sql("""
-SELECT count(*) AS listings,
+WITH one AS (   -- pick a single Phuket property that has real seasonal swing
+  SELECT property_id FROM gold_property_features
+  WHERE destination='Phuket'
+  GROUP BY property_id
+  ORDER BY max(suggested_price) - min(suggested_price) DESC LIMIT 1
+)
+SELECT f.target_month, f.base_price, f.season_index,
+       f.season_uplift, f.comp_uplift, f.fx_uplift, f.holiday_uplift, f.suggested_price
+FROM gold_property_features f JOIN one ON one.property_id = f.property_id
+ORDER BY f.target_month
+"""))
+
+# COMMAND ----------
+# MAGIC %md
+# MAGIC Chart tip: on the result above, Visualization → Line, X = `target_month`, Y = `suggested_price`.
+# MAGIC That curve (cheap in Jan, peak in Jul) is the dynamic-pricing screenshot for the demo.
+
+# COMMAND ----------
+# MAGIC %md
+# MAGIC ### How much revenue upside across the marketplace?
+# MAGIC The one-number business case. Per month, and averaged across the whole year.
+
+# COMMAND ----------
+display(spark.sql(f"""
+SELECT target_month,
+       count(*) AS listings,
        round(avg(suggested_price - base_price), 2) AS avg_uplift_per_night,
-       round(sum(suggested_price - base_price)) AS total_uplift_per_night_all_listings,
        round(100*avg((suggested_price-base_price)/base_price),1) AS avg_uplift_pct
+FROM gold_property_features
+GROUP BY target_month ORDER BY target_month
+"""))
+
+# COMMAND ----------
+display(spark.sql(f"""
+SELECT round(avg(suggested_price - base_price), 2) AS avg_uplift_per_night_all_year,
+       round(100*avg((suggested_price-base_price)/base_price),1) AS avg_uplift_pct_all_year,
+       (SELECT round(avg(suggested_price-base_price),2) FROM gold_property_features WHERE target_month={DEMO_MONTH}) AS avg_uplift_peak_month
 FROM gold_property_features
 """))
 
@@ -285,13 +331,16 @@ display(spark.sql("SELECT property_id, title, substr(search_text,1,220) AS searc
 # MAGIC ## ✅ Checkpoint
 # MAGIC Two gold tables written to `hackathon.data_axle`:
 # MAGIC - **`gold_property_features`** — base + 4 explainable uplifts → `suggested_price`, plus demand/occupancy
-# MAGIC   signals, currency, holiday flag, lat/lon. One row per property, priced for `TARGET_MONTH`.
+# MAGIC   signals, currency, holiday flag, lat/lon. **One row per (property, month)** — ~218k rows — so the
+# MAGIC   app can price any check-in month. Serving key = `(property_id, target_month)`.
 # MAGIC - **`gold_property_doc`** — `search_text` per property, ready to embed.
 # MAGIC - **`dim_country`** — reusable country → currency/ISO map.
 # MAGIC
-# MAGIC You should be able to point at any listing and explain its price term by term. Try changing
-# MAGIC `TARGET_MONTH` to 1 (January) and re-running §6 — watch the uplift shrink (off-season). That
-# MAGIC contrast is a great demo moment.
+# MAGIC You can now point at any listing and explain its price term by term, *and* show the same villa
+# MAGIC priced across all 12 months (the dynamic-pricing proof — see the per-month line chart above).
+# MAGIC
+# MAGIC > Note: `suggested_price` here uses a **destination-level** comp baseline. The richer
+# MAGIC > **semantic 20-mi comp** (pgvector + geo) refines it later in Lakebase — see `ENHANCEMENTS.md` E2.
 # MAGIC
 # MAGIC **Next:** `04_provision_lakebase.py` — stand up `pricewise-db` and verify the search extensions
 # MAGIC (`lakebase_text`, `lakebase_vector`, PostGIS) — the critical unknown.
