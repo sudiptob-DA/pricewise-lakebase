@@ -36,7 +36,9 @@ spark.sql(f"USE CATALOG {CAT}"); spark.sql(f"USE SCHEMA {SCH}")
 DEMO_MONTH = 7            # ONLY for eyeballing results below (7 = July peak). Not a compute limit.
 
 # --- pricing policy (fractions of base price; all capped so prices stay sane) ---
-SEASON_MIN, SEASON_MAX = -0.20, 0.60   # season can swing price -20%..+60%
+SEASON_MIN, SEASON_MAX = -0.10, 0.60   # season swings price -10%..+60% (gentle off-season, strong peak)
+SEASON_MIN_BOOKINGS    = 5             # a dest-month with fewer bookings than this is "too sparse to judge"
+                                       # -> treated as NEUTRAL (index 1.0), not a dead 0 (see §2)
 COMP_TOWARD_MEDIAN     = 0.30          # if under-priced vs destination, close 30% of the gap...
 COMP_CAP               = 0.15          # ...but never more than +15% of base from comps
 FX_WEIGHT              = 0.50          # capture half of a currency's weakening as uplift
@@ -70,10 +72,14 @@ display(spark.table("dim_country"))
 # MAGIC %md
 # MAGIC ## 2. Seasonality — destination × month demand index (ALL months)
 # MAGIC For each destination *and each month*, how busy is it vs. that destination's *own* average month?
-# MAGIC `season_index = bookings_in_month / avg_bookings_per_month`. So 3.0 means "3× a normal month."
-# MAGIC We keep all 12 months so every property can be priced for any check-in month. To guarantee a
-# MAGIC complete grid (some destination/month combos may have zero bookings), we cross-join
-# MAGIC destinations × months 1–12 and treat missing months as 0 bookings. **This is the core of the thesis.**
+# MAGIC `season_index = bookings_in_month / avg_ACTIVE_month_bookings`. So 3.0 means "3× a typical busy month."
+# MAGIC We keep all 12 months so every property can be priced for any check-in month.
+# MAGIC
+# MAGIC **Two design fixes (learned from the data):** bookings here are highly concentrated (a destination
+# MAGIC may only really trade in summer), so (1) we average over **months that actually have bookings**,
+# MAGIC not the whole year — otherwise every real month looks "above average" and every empty month a dead 0;
+# MAGIC and (2) a month too sparse to judge (`< SEASON_MIN_BOOKINGS`) is treated as **neutral (index 1.0)**,
+# MAGIC so off-season doesn't get punished as if demand collapsed. Peak months still surface a strong index.
 
 # COMMAND ----------
 spark.sql(f"""
@@ -93,13 +99,19 @@ filled AS (
     ON bm.destination_id = g.destination_id AND bm.mth = g.mth
 ),
 dest_avg AS (
-  SELECT destination_id, avg(bookings) AS avg_month_bookings
-  FROM filled GROUP BY destination_id
+  -- average only over months that ACTUALLY have bookings, so a destination with a short
+  -- concentrated season isn't judged against a mostly-empty year (which made every real
+  -- month look "above average" and every empty month a dead 0).
+  SELECT destination_id, avg(bookings) AS avg_active_month_bookings
+  FROM filled WHERE bookings > 0 GROUP BY destination_id
 )
 SELECT f.destination_id, f.mth,
        f.bookings AS month_bookings,
-       round(a.avg_month_bookings, 1) AS avg_month_bookings,
-       round(f.bookings / nullif(a.avg_month_bookings, 0), 2) AS season_index
+       round(a.avg_active_month_bookings, 1) AS avg_month_bookings,
+       -- NEUTRAL when the month is too sparse to judge (< SEASON_MIN_BOOKINGS): index = 1.0 (no swing).
+       -- Otherwise, ratio vs the destination's typical ACTIVE month.
+       CASE WHEN f.bookings < {SEASON_MIN_BOOKINGS} THEN 1.0
+            ELSE round(f.bookings / nullif(a.avg_active_month_bookings, 0), 2) END AS season_index
 FROM filled f
 JOIN dest_avg a ON f.destination_id = a.destination_id
 """)
