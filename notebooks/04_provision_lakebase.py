@@ -34,7 +34,11 @@ import time, requests
 from databricks.sdk import WorkspaceClient
 
 INSTANCE_NAME = "pricewise-db"          # DNS-compliant: letters + hyphens only
-CAPACITY      = "CU_1"                   # smallest; adjust if the API rejects (see printed valid values)
+CAPACITY      = "CU_2"                   # 2 CU = ~4 GB RAM: headroom for vector + BM25 indexes on 18k rows.
+                                         # (Point-lookups are fast at any size; CU mainly helps search/
+                                         #  index work + concurrency. Scales to zero when idle.)
+                                         # If the API rejects this value, it prints valid options — try
+                                         # "CU_1"/"CU_4" or a numeric size per the docs (0.5–112 CU).
 
 w = WorkspaceClient()
 host = w.config.host.rstrip("/")
