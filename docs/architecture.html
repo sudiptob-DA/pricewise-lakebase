@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>PriceWise — Architecture</title>
+<style>
+  :root{
+    --oat:#F7F5F1; --navy:#1B3139; --ink:#3A4A52; --muted:#8A96A3;
+    --lava:#FF3621; --lava2:#FF5F46; --green:#00A972; --blue:#2272B4;
+    --gold:#FFAB00; --line:#E4E0D8; --card:#FFFFFF;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--oat);color:var(--navy);
+    font-family:Inter,'Segoe UI',Helvetica,Arial,sans-serif;padding:28px 32px}
+  h1{font-size:22px;margin:0 0 2px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--ink);margin-bottom:18px}
+  .legend b{display:inline-block;width:22px;height:8px;border-radius:4px;margin-right:6px;vertical-align:middle}
+  .wrap{position:relative;width:1180px;max-width:100%}
+  svg{width:100%;height:auto;display:block}
+
+  /* nodes */
+  .node{fill:var(--card);stroke:var(--line);stroke-width:1.5;rx:12}
+  .node.src{fill:#F0EDE6}
+  .lake{fill:#EAF1F6;stroke:#cfe0ea}
+  .lb{fill:#1B3139;stroke:#1B3139}
+  .app{fill:#FFF1EE;stroke:#FF3621}
+  .title{font-size:13px;font-weight:700;fill:var(--navy)}
+  .title.on{fill:#fff}
+  .desc{font-size:10.5px;fill:var(--muted)}
+  .desc.on{fill:#B9C4CA}
+  .band{font-size:11px;font-weight:700;letter-spacing:.5px;fill:var(--muted)}
+  .pill{font-size:9.5px;font-weight:700}
+
+  /* animated flow */
+  .flow{fill:none;stroke-width:2.4;stroke-linecap:round}
+  .f-etl{stroke:var(--green)}
+  .f-serve{stroke:var(--lava)}
+  .f-sync{stroke:var(--blue)}
+  .f-user{stroke:var(--gold)}
+  .dash{stroke-dasharray:9 7;animation:march 1.1s linear infinite}
+  .f-serve.dash{animation-duration:.7s}
+  .f-user.dash{animation-duration:.9s}
+  @keyframes march{to{stroke-dashoffset:-32}}
+  .glow{filter:drop-shadow(0 0 3px rgba(0,0,0,.12))}
+  @media (prefers-reduced-motion: reduce){.dash{animation:none}}
+</style>
+</head>
+<body>
+  <h1>PriceWise — end-to-end pipeline</h1>
+  <div class="sub">Lakehouse features &rarr; Lakebase serving &rarr; App &rarr; write-back. Built for Track 2 (Data &amp; ML Engineers).</div>
+  <div class="legend">
+    <span><b style="background:#00A972"></b>Reverse ETL / Synced Tables (UC &rarr; Lakebase)</span>
+    <span><b style="background:#FF3621"></b>Real-time serving (&lt;200ms)</span>
+    <span><b style="background:#2272B4"></b>Lakehouse Sync (Lakebase &rarr; UC)</span>
+    <span><b style="background:#FFAB00"></b>User traffic</span>
+  </div>
+
+  <div class="wrap">
+  <svg viewBox="0 0 1180 640" xmlns="http://www.w3.org/2000/svg">
+    <!-- arrow marker -->
+    <defs>
+      <marker id="ah" markerWidth="8" markerHeight="8" refX="5" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 Z" fill="context-stroke"/>
+      </marker>
+      <marker id="ah-green" markerWidth="8" markerHeight="8" refX="5" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#00A972"/></marker>
+      <marker id="ah-lava" markerWidth="8" markerHeight="8" refX="5" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#FF3621"/></marker>
+      <marker id="ah-blue" markerWidth="8" markerHeight="8" refX="5" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2272B4"/></marker>
+      <marker id="ah-gold" markerWidth="8" markerHeight="8" refX="5" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#FFAB00"/></marker>
+    </defs>
+
+    <!-- band labels -->
+    <text class="band" x="20" y="30">SOURCES</text>
+    <text class="band" x="20" y="150">LAKEHOUSE  (Unity Catalog · Lakeflow)</text>
+    <text class="band" x="20" y="330">LAKEBASE  (serverless Postgres)</text>
+    <text class="band" x="20" y="500">APP  (Databricks App)</text>
+
+    <!-- ===== SOURCES ===== -->
+    <g class="glow">
+      <rect class="node src" x="40"  y="44" width="150" height="58" rx="12"/>
+      <text class="title" x="54" y="68">wanderbricks</text><text class="desc" x="54" y="86">18k stays · reviews · bookings · clicks</text>
+      <rect class="node src" x="210" y="44" width="120" height="58" rx="12"/>
+      <text class="title" x="224" y="68">FX rates</text><text class="desc" x="224" y="86">frankfurter.dev</text>
+      <rect class="node src" x="350" y="44" width="130" height="58" rx="12"/>
+      <text class="title" x="364" y="68">Public holidays</text><text class="desc" x="364" y="86">date.nager.at</text>
+    </g>
+
+    <!-- ===== LAKEHOUSE ===== -->
+    <g class="glow">
+      <rect class="node" x="40" y="168" width="150" height="120" rx="12"/>
+      <text class="title" x="54" y="192">Bronze &rarr; Silver</text>
+      <text class="desc" x="54" y="210">raw reads, typed/clean</text>
+      <text class="desc" x="54" y="226">Lakeflow Declarative</text>
+      <text class="desc" x="54" y="250">ingest FX + holidays</text>
+      <text class="desc" x="54" y="266">&rarr; Delta (cached)</text>
+
+      <rect class="node" x="220" y="168" width="180" height="120" rx="12"/>
+      <text class="title" x="234" y="192">Gold features</text>
+      <text class="desc" x="234" y="210">season · demand · comps</text>
+      <text class="desc" x="234" y="226">holiday_boost · fx_factor</text>
+      <text class="desc" x="234" y="242">property doc (for embed)</text>
+      <text class="desc" x="234" y="266">geo geography (PostGIS)</text>
+
+      <rect class="node" x="430" y="168" width="160" height="120" rx="12"/>
+      <text class="title" x="444" y="192">Model Serving</text>
+      <text class="desc" x="444" y="210">embed descriptions</text>
+      <text class="desc" x="444" y="226">gte / bge endpoint</text>
+      <text class="desc" x="444" y="250">Feature Eng. SDK</text>
+      <text class="desc" x="444" y="266">materialize features</text>
+
+      <rect class="node lake" x="620" y="168" width="150" height="120" rx="12"/>
+      <text class="title" x="634" y="192">Genie</text>
+      <text class="desc" x="634" y="210">text-to-SQL analytics</text>
+      <text class="desc" x="634" y="226">over gold</text>
+      <text class="desc" x="634" y="250">Revenue Copilot</text>
+      <text class="desc" x="634" y="266">(optional, off-path)</text>
+    </g>
+
+    <!-- ===== LAKEBASE ===== -->
+    <g class="glow">
+      <rect class="node lb" x="220" y="348" width="200" height="120" rx="12"/>
+      <text class="title on" x="234" y="372">properties</text>
+      <text class="desc on" x="234" y="390">lakebase_vector (ANN)</text>
+      <text class="desc on" x="234" y="406">lakebase_text (BM25)</text>
+      <text class="desc on" x="234" y="422">geography · filters</text>
+      <text class="desc on" x="234" y="446">hybrid search — one</text>
+      <text class="desc on" x="234" y="462">ACID query (RRF)</text>
+
+      <rect class="node lb" x="440" y="348" width="200" height="120" rx="12"/>
+      <text class="title on" x="454" y="372">property_pricing</text>
+      <text class="desc on" x="454" y="390">online feature store</text>
+      <text class="desc on" x="454" y="406">suggested_price, demand</text>
+      <text class="desc on" x="454" y="422">season/comp/fx/holiday</text>
+      <text class="desc on" x="454" y="446">point lookup by id</text>
+      <text class="desc on" x="454" y="462">&lt;200ms serving</text>
+
+      <rect class="node lb" x="660" y="348" width="180" height="120" rx="12"/>
+      <text class="title on" x="674" y="372">app state</text>
+      <text class="desc on" x="674" y="390">search_events</text>
+      <text class="desc on" x="674" y="406">saved_properties</text>
+      <text class="desc on" x="674" y="446">OLTP row writes</text>
+      <text class="desc on" x="674" y="462">(a save = a row)</text>
+    </g>
+
+    <!-- ===== APP ===== -->
+    <g class="glow">
+      <rect class="node app" x="220" y="524" width="300" height="92" rx="12"/>
+      <text class="title" x="234" y="550">FastAPI + static UI (Databricks App)</text>
+      <text class="desc" x="234" y="570">Search · Map · Stay detail · Pricing Studio · Insights</text>
+      <text class="desc" x="234" y="590">psycopg via generate_database_credential()</text>
+      <text class="desc" x="234" y="606">reads properties + pricing · calls Genie</text>
+
+      <rect class="node" x="560" y="524" width="150" height="92" rx="12"/>
+      <text class="title" x="574" y="550">Guests &amp; Hosts</text>
+      <text class="desc" x="574" y="570">search in NL</text>
+      <text class="desc" x="574" y="588">see live prices</text>
+      <text class="desc" x="574" y="606">save / book</text>
+    </g>
+
+    <!-- ============ FLOWS ============ -->
+    <!-- sources -> bronze -->
+    <path class="flow f-etl dash" marker-end="url(#ah-green)" d="M115,102 L115,168"/>
+    <path class="flow f-etl dash" marker-end="url(#ah-green)" d="M270,102 C270,135 150,140 132,166"/>
+    <path class="flow f-etl dash" marker-end="url(#ah-green)" d="M415,102 C415,140 175,140 150,166"/>
+    <!-- lakehouse chain -->
+    <path class="flow f-etl dash" marker-end="url(#ah-green)" d="M190,228 L220,228"/>
+    <path class="flow f-etl dash" marker-end="url(#ah-green)" d="M400,228 L430,228"/>
+    <!-- gold -> genie -->
+    <path class="flow f-etl dash" marker-end="url(#ah-green)" d="M590,210 L620,210"/>
+
+    <!-- Reverse ETL: gold/model -> lakebase (properties + pricing) -->
+    <path class="flow f-etl dash" marker-end="url(#ah-green)" d="M320,288 L320,348"/>
+    <path class="flow f-etl dash" marker-end="url(#ah-green)" d="M510,288 L540,348"/>
+    <text class="pill" x="330" y="322" fill="#00A972">Reverse ETL · Synced Tables</text>
+
+    <!-- serving: lakebase -> app (fast) -->
+    <path class="flow f-serve dash" marker-end="url(#ah-lava)" d="M320,468 L340,524"/>
+    <path class="flow f-serve dash" marker-end="url(#ah-lava)" d="M540,468 L420,524"/>
+    <text class="pill" x="360" y="500" fill="#FF3621">&lt;200ms serve</text>
+
+    <!-- user traffic -->
+    <path class="flow f-user dash" marker-end="url(#ah-gold)" d="M560,570 L520,570"/>
+    <!-- app writes -> app state (lakebase) -->
+    <path class="flow f-serve dash" marker-end="url(#ah-lava)" d="M470,524 C540,505 700,500 730,468"/>
+    <text class="pill" x="560" y="505" fill="#FF3621">writes</text>
+
+    <!-- Lakehouse Sync: app state -> back to lakehouse -->
+    <path class="flow f-sync dash" marker-end="url(#ah-blue)" d="M840,392 C960,392 980,250 590,220" opacity="0.9"/>
+    <text class="pill" x="870" y="330" fill="#2272B4">Lakehouse Sync · SCD2</text>
+
+    <!-- genie -> app (analytics) -->
+    <path class="flow f-etl dash" marker-end="url(#ah-green)" d="M695,288 C695,430 560,470 490,522" opacity=".55"/>
+  </svg>
+  </div>
+</body>
+</html>

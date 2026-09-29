@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Env / secrets — never commit
+.env
+.databrickscfg
+*.pat
+*.token
+
+# Databricks
+.databricks/
+.bundle/
+
+# Node (if AppKit/JS build used)
+node_modules/
+dist/
+build/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local scratch
+_*.py
+_*.json
+_*.txt
+tmp/

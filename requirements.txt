@@ -1,0 +1,14 @@
+# App + data layer
+fastapi>=0.115
+uvicorn[standard]>=0.30
+psycopg[binary]>=3.2
+databricks-sdk>=0.33
+databricks-sql-connector>=3.4
+pydantic>=2.8
+
+# Ingest / features
+requests>=2.32
+pandas>=2.2
+
+# Dev
+pytest>=8.0
