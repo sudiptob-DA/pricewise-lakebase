@@ -12,61 +12,94 @@
 # MAGIC > ⚠️ **Provisioning creates a billable resource** on the shared hackathon workspace. It scales to
 # MAGIC > zero when idle. Use the smallest capacity.
 # MAGIC
-# MAGIC ### Why provision in the UI, verify here
-# MAGIC New Lakebase instances are **Autoscaling projects** (branches + endpoints), and the exact
-# MAGIC create-API is in flux. The reliable path for a hackathon is: **create the instance in the UI**
-# MAGIC (3 clicks), then **connect + smoke-test from this notebook**. If you'd rather not use a notebook
-# MAGIC at all for the check, you can paste the SQL in §3 straight into the **Lakebase SQL Editor**.
+# MAGIC ### Provision + verify entirely from this notebook
+# MAGIC Your workspace exposes the Database Instances API, so we create `pricewise-db` programmatically
+# MAGIC with the SDK (REST fallback), wait for it to become available, connect, and run the smoke test —
+# MAGIC no UI clicks. If you prefer, you can still create it in the Lakebase UI and skip §1; §2 onward
+# MAGIC will reuse whatever instance named `pricewise-db` exists.
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ## 1. Provision `pricewise-db` (do this once, in the UI)
-# MAGIC 1. Left sidebar → **Compute** → **Database instances** (or search "Lakebase") → **Create**.
-# MAGIC 2. **Name:** `pricewise-db` · **Capacity:** smallest available (e.g. `CU_1`) · leave defaults.
-# MAGIC 3. Wait until status is **Available** (usually 1–3 min; first start from zero can be slower).
-# MAGIC 4. Click **Connect** on the instance → copy the **host**, **database**, **user**, and **endpoint
-# MAGIC    name** into the config cell below. (The "Connect" dialog shows the exact values for your identity.)
-# MAGIC
-# MAGIC > Tip: also verify it via the CLI on your laptop:
-# MAGIC > `databricks database list-database-instances` (or `databricks postgres ...` for projects).
-
-# COMMAND ----------
-# MAGIC %md
-# MAGIC ## 2. Connect from the notebook
-# MAGIC We use the documented pattern: the Databricks SDK mints a short-lived (60-min) OAuth credential,
-# MAGIC used as the Postgres password, over an SSL psycopg connection. Fill in the values from the
-# MAGIC **Connect** dialog. Leave `ENDPOINT_NAME` blank if your instance shows a plain host instead of a
-# MAGIC `projects/.../endpoints/...` name — the code handles both.
+# MAGIC ## 1. Provision `pricewise-db` from the notebook (no UI needed)
+# MAGIC Your workspace exposes the **Database Instances API** (verified). We create the instance with the
+# MAGIC SDK; if the SDK method name differs by version, we fall back to a direct REST POST (same auth).
+# MAGIC **Billable, scales to zero.** Smallest capacity. Re-running is safe — if it already exists we reuse it.
 
 # COMMAND ----------
 # MAGIC %pip install --quiet "databricks-sdk>=0.89.0" "psycopg[binary]>=3.1.0"
 # MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
-# ---- PASTE from the Lakebase "Connect" dialog ----
-PGHOST        = ""    # e.g. instance-xxxx.database.<region>.cloud.databricks.com
-PGDATABASE    = "databricks_postgres"
-PGUSER        = ""    # your Databricks identity (email) OR service-principal client id shown in dialog
-PGPORT        = "5432"
-ENDPOINT_NAME = ""    # projects/<id>/branches/<id>/endpoints/<id>  (blank if not shown)
-INSTANCE_NAME = "pricewise-db"
+import time, requests
+from databricks.sdk import WorkspaceClient
 
-assert PGHOST and PGUSER, "Fill PGHOST and PGUSER from the Lakebase Connect dialog first."
+INSTANCE_NAME = "pricewise-db"          # DNS-compliant: letters + hyphens only
+CAPACITY      = "CU_1"                   # smallest; adjust if the API rejects (see printed valid values)
+
+w = WorkspaceClient()
+host = w.config.host.rstrip("/")
+tok  = w.config.token or w.config.oauth_token().access_token
+H = {"Authorization": f"Bearer {tok}", "Content-Type": "application/json"}
+
+def rest(method, path, body=None):
+    r = requests.request(method, f"{host}{path}", headers=H, json=body, timeout=60)
+    return r.status_code, (r.json() if r.text and r.headers.get("content-type","").startswith("application/json") else r.text)
+
+def get_instance():
+    code, data = rest("GET", f"/api/2.0/database/instances/{INSTANCE_NAME}")
+    return data if code == 200 else None
+
+existing = get_instance()
+if existing:
+    print(f"✅ instance '{INSTANCE_NAME}' already exists — reusing. state={existing.get('state')}")
+else:
+    # Try SDK first (cleanest), fall back to REST if the method signature differs.
+    created = None
+    try:
+        from databricks.sdk.service.database import DatabaseInstance
+        created = w.database.create_database_instance(
+            DatabaseInstance(name=INSTANCE_NAME, capacity=CAPACITY)).as_dict()
+        print("Created via SDK:", created.get("name"), created.get("state"))
+    except Exception as e:
+        print("SDK create path unavailable, using REST:", str(e)[:160])
+        code, data = rest("POST", "/api/2.0/database/instances",
+                          {"name": INSTANCE_NAME, "capacity": CAPACITY})
+        print(f"REST create -> {code}: {str(data)[:300]}")
+        if code >= 400:
+            raise SystemExit("Create failed — read the error above (often the capacity value; "
+                             "try 'CU_2' or a numeric size per the docs).")
+
+# --- wait for AVAILABLE ---
+for _ in range(40):
+    inst = get_instance() or {}
+    state = inst.get("state", "UNKNOWN")
+    print("state:", state)
+    if state in ("AVAILABLE", "RUNNING"): break
+    if state in ("FAILED", "DELETING"): raise SystemExit(f"Instance in bad state: {state}")
+    time.sleep(10)
+
+inst = get_instance() or {}
+PGHOST = inst.get("read_write_dns") or inst.get("dns") or inst.get("host")
+print("\nInstance ready. PGHOST =", PGHOST)
+print("Full instance record keys:", list(inst.keys()))
+
+# COMMAND ----------
+# MAGIC %md
+# MAGIC ## 2. Connect from the notebook
+# MAGIC The SDK mints a short-lived (60-min) OAuth credential used as the Postgres password over SSL.
+# MAGIC `PGHOST` came from the instance record above; `PGUSER` is your Databricks identity (you're the
+# MAGIC owner/superuser of a freshly created instance).
 
 # COMMAND ----------
 import psycopg
-from databricks.sdk import WorkspaceClient
 
-w = WorkspaceClient()   # uses this notebook's identity (you are the DB owner/superuser)
+PGDATABASE = "databricks_postgres"
+PGUSER     = w.current_user.me().user_name   # your email = your Postgres superuser role
+PGPORT     = "5432"
+assert PGHOST, "PGHOST not resolved from the instance record — check the printed keys above."
 
 def fresh_token():
-    """Mint a short-lived Lakebase credential; works for both projects (endpoint) and instances."""
-    try:
-        if ENDPOINT_NAME:
-            return w.postgres.generate_database_credential(endpoint=ENDPOINT_NAME).token
-    except Exception as e:
-        print("postgres.generate_database_credential(endpoint=...) failed:", str(e)[:160])
-    # fallback: instances API
+    """Mint a short-lived Lakebase credential for this instance."""
     cred = w.database.generate_database_credential(
         request_id=INSTANCE_NAME, instance_names=[INSTANCE_NAME])
     return cred.token
