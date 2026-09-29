@@ -17,7 +17,7 @@ Already wired up:
 
 ---
 
-## Phase 1 — Understand the data ⬜  → `notebooks/01_explore_lakehouse.py`
+## Phase 1 — Understand the data ✅  → `notebooks/01_explore_lakehouse.py`
 **Goal:** know the raw data cold before transforming it. You'll learn the tables, the
 seasonality insight (the whole business case), and why reviews are unusable for search.
 - Read `properties`, `reviews`, `bookings`, `clickstream`, `destinations`, `amenities`.
@@ -25,13 +25,13 @@ seasonality insight (the whole business case), and why reviews are unusable for 
 - Confirm descriptions are the semantic corpus (distinct) and reviews are templated.
 - 🔎 **Checkpoint:** you can explain, in one sentence each, what every table gives us.
 
-## Phase 2 — Ingest external signals ⬜  → `notebooks/02_ingest_fx_holidays.py`
+## Phase 2 — Ingest external signals ✅  → `notebooks/02_ingest_fx_holidays.py`
 **Goal:** pull FX + holidays once, land them as Delta tables in `hackathon.data_axle`.
 - Call `frankfurter.dev` (current + 12-mo history) → `fx_rates` Delta table.
 - Call `date.nager.at` per destination country → `holidays` Delta table (+ Songkran backfill).
 - 🔎 **Checkpoint:** both Delta tables queryable; joins to `destinations.country` work.
 
-## Phase 3 — Build gold features ⬜  → `notebooks/03_gold_features.py`
+## Phase 3 — Build gold features 🔎 (built; run + verify)  → `notebooks/03_gold_features.py`
 **Goal:** the feature tables that power pricing + search.
 - `gold_property_doc` — title + description + destination context (text to embed).
 - `gold_property_features` — season_factor, demand_score, occupancy_30d, comp inputs,
@@ -89,3 +89,8 @@ seasonality insight (the whole business case), and why reviews are unusable for 
 ## Priority if time runs short
 Core (must): Phases 1–5, 7, 8. Then Reverse ETL (6). Genie/Sync (9) and Map tab are polish.
 Cut order (last-in-first-out): holidays enrichment → Map tab → Revenue Copilot → Lakehouse Sync.
+
+## After the core works → innovation backlog
+Novel Lakebase differentiators are parked in [`ENHANCEMENTS.md`](./ENHANCEMENTS.md):
+branch-based pricing sandboxes (E1), semantic comp sets (E2), time-travel demand replay (E3).
+Do NOT start these until the core app runs end to end. Verify their dependencies in the Phase-4 smoke test.
