@@ -184,9 +184,12 @@ FROM bk
 # COMMAND ----------
 spark.sql(f"""
 CREATE OR REPLACE TABLE gold_property_features AS
-WITH holiday_by_month AS (   -- which (country, month) combos have a public holiday?
+WITH holiday_by_month AS (   -- which (country, month) combos have a NATIONAL (global) public holiday?
+  -- is_global filters out regional/observance days so the boost reflects broad, demand-moving
+  -- holidays (Songkran, Golden Week, Christmas...) rather than every minor local date.
   SELECT DISTINCT dc.country, month(to_date(h.holiday_date)) AS mth
   FROM holidays h JOIN dim_country dc ON dc.country = h.country
+  WHERE h.is_global = true
 ),
 base AS (
   SELECT
