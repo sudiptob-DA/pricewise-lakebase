@@ -60,8 +60,18 @@ do in one shot.
 **Note:** this one is close to the core — could be folded into the main comp-set implementation rather than
 deferred, if time allows. Keep here as the "upgrade" version of comps.
 
-**Acceptance:** comp set for a listing returns semantically-similar nearby stays; `comp_percentile`
-computed from them; visibly better comps than category-only.
+**Radius — constant now, slider later:**
+- The current comp signal (notebook 03) is **destination-level** (median price of the whole destination) —
+  no distance/radius at all. It's the simple baseline that feeds the initial `suggested_price`.
+- E2 replaces it with a **geo radius** comp: `ST_DWithin(location, point, RADIUS)` + `lakebase_vector`
+  similarity, run in Lakebase (needs PostGIS — verified in notebook 04).
+- Ship the radius as a **named constant first** (`COMP_RADIUS_MI = 20`) — do NOT hardcode it inline in SQL.
+- Promote to a **UI slider only in the Host / Pricing Studio** ("comps within 10 / 20 / 50 mi") as a polish
+  step once the core comp works — it's how a revenue manager thinks and makes a strong interactive demo beat.
+  Guest search stays a fixed radius / map-draw (guests think "near the beach", not miles), not a slider.
+
+**Acceptance:** comp set for a listing returns semantically-similar nearby stays within `COMP_RADIUS_MI`;
+`comp_percentile` computed from them; visibly better comps than category-only. (Slider is optional polish.)
 
 ---
 
