@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>PriceWise</title>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+  <div class="topbar">
+    <div class="logo">price<span>wise</span></div>
+    <div class="tagline">demand-aware pricing &amp; smart search · on Lakebase</div>
+    <div class="spacer"></div>
+    <label class="tagline">Check-in month
+      <select id="month" class="monthsel">
+        <option value="1">January</option><option value="2">February</option>
+        <option value="3">March</option><option value="4">April</option>
+        <option value="5">May</option><option value="6">June</option>
+        <option value="7" selected>July</option><option value="8">August</option>
+        <option value="9">September</option><option value="10">October</option>
+        <option value="11">November</option><option value="12">December</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="search">Search</div>
+    <div class="tab" data-tab="studio">Pricing Studio</div>
+    <div class="tab" data-tab="insights">Insights</div>
+  </div>
+
+  <!-- SEARCH TAB -->
+  <div class="wrap tabpane" id="pane-search">
+    <div class="searchrow">
+      <div class="searchbox">
+        <input id="q" placeholder="Describe your trip — e.g. romantic sea-view escape with a pool and nightlife"
+               value="romantic sea-view escape with a pool and nightlife"/>
+      </div>
+      <label class="toggle">Semantic <input type="checkbox" id="semantic" checked/></label>
+      <button class="btn" id="go">Search</button>
+    </div>
+    <div class="filters">
+      <input id="maxprice" type="number" placeholder="Max nightly $" min="0"/>
+      <select id="dest"><option value="">All destinations</option></select>
+    </div>
+    <div id="searchStatus" class="muted"></div>
+    <div class="grid" id="results"></div>
+  </div>
+
+  <!-- PRICING STUDIO TAB -->
+  <div class="wrap tabpane hidden" id="pane-studio">
+    <div id="studioEmpty" class="loading">Open a listing from Search to see its pricing studio, or
+      <a href="#" id="studioRandom">load a sample Phuket villa</a>.</div>
+    <div id="studioContent" class="hidden">
+      <div class="panel">
+        <h2 id="stTitle"></h2>
+        <div class="sub muted" id="stSub"></div>
+        <div class="waterfall" id="stWaterfall"></div>
+        <div class="sub muted" style="margin-top:8px">Served &lt;200ms from Lakebase · price for selected month</div>
+      </div>
+      <div class="panel">
+        <h2>Price across the year</h2>
+        <div class="muted">Same listing, every month — dynamic pricing you can see.</div>
+        <div class="bars" id="stCurve"></div>
+      </div>
+      <div class="panel">
+        <h2>Comparable stays within 20 miles</h2>
+        <div class="muted">Geo comps via PostGIS — how neighbors are priced.</div>
+        <div id="stComps"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INSIGHTS TAB -->
+  <div class="wrap tabpane hidden" id="pane-insights">
+    <div class="panel">
+      <h2>Marketplace revenue upside</h2>
+      <div class="muted">Suggested vs. flat base pricing, for the selected month.</div>
+      <div class="kpi" id="marketKpi" style="margin-top:14px"></div>
+    </div>
+    <div class="panel">
+      <h2 class="muted">Genie analytics (coming in Phase 9)</h2>
+      <div class="muted">Natural-language questions over gold — revenue by destination, seasonality, most under-priced listings.</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Live from Lakebase &lt;200ms · reranked by lakebase_vector + lakebase_text (BM25, RRF) ·
+    geo comps via PostGIS · prices from gold features (season · comps · FX · holidays)
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
