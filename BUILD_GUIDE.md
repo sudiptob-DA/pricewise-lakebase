@@ -39,7 +39,10 @@ seasonality insight (the whole business case), and why reviews are unusable for 
 - Explain each factor's formula (transparent heuristic — swappable later).
 - 🔎 **Checkpoint:** eyeball 5 properties; the suggested price moves sensibly with each factor.
 
-## Phase 4 — Provision Lakebase + verify Search ⬜  → `notebooks/04_provision_lakebase.py`
+## Phase 4 — Provision Lakebase + verify Search ✅  → `notebooks/04_provision_lakebase.py`
+> **Result:** `pricewise-db` (CU_2) provisioned. Lakebase Search enabled in project settings.
+> All extensions PASS — **Plan A: native Lakebase hybrid** (`lakebase_vector` + `lakebase_text` BM25 + PostGIS).
+> BM25 syntax = `lakebase_bm25` index + `<@> to_bm25query(to_tsvector('english', q), 'index_name')` (lower = better).
 **Goal:** stand up the Postgres instance and CONFIRM the search extensions (the big unknown).
 - Provision `pricewise-db` (smallest capacity, scales to zero).
 - `CREATE EXTENSION` for `lakebase_vector`, `lakebase_text`, PostGIS.
