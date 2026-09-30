@@ -28,7 +28,7 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "pricing_source": queries.pricing_source()}
 
 
 @app.get("/api/destinations")

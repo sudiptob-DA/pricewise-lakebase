@@ -2,10 +2,31 @@
 PriceWise query layer — the SQL behind each API endpoint.
 Keeps all Lakebase SQL in one place: hybrid search, pricing serving, comps, detail.
 """
+import functools
 from . import db
 
 RRF_K = 60          # RRF damping constant (lower = rank position matters more)
 LIST_LIMIT = 80     # candidates pulled from each ranker before fusion
+
+# Pricing is served from the Reverse-ETL Synced Table when it exists (production path),
+# else the manually-loaded table (notebook 05). Same columns either way — safe fallback.
+SYNCED_PRICING = 'data_axle.serve_property_pricing_synced'
+MANUAL_PRICING = 'property_pricing'
+
+
+@functools.lru_cache(maxsize=1)
+def pricing_table() -> str:
+    """Return the synced pricing table if present in Lakebase, else the manual one."""
+    try:
+        db.query(f"SELECT 1 FROM {SYNCED_PRICING} LIMIT 1")
+        return SYNCED_PRICING
+    except Exception:
+        return MANUAL_PRICING
+
+
+def pricing_source() -> str:
+    """Human label for /api/health — which table the app is serving prices from."""
+    return "synced (Reverse ETL)" if pricing_table() == SYNCED_PRICING else "manual"
 
 # The wanderbricks dataset has no real property names (title is generic like "Villa in Phuket").
 # We synthesize a friendly, STABLE name from the property_id using word-bank arrays — deterministic,
@@ -43,6 +64,7 @@ def hybrid_search(q: str, month: int, *, semantic: bool = True,
     filt_p    = dest_p + price_p
 
     qvec = db.embed(q) if semantic else None
+    PRICING = pricing_table()
 
     # Use NAMED placeholders (%(name)s) so parameter order can't get mismatched — the same
     # name can appear multiple times in the SQL and psycopg binds it correctly everywhere.
@@ -79,7 +101,7 @@ def hybrid_search(q: str, month: int, *, semantic: bool = True,
         FROM properties p
         LEFT JOIN vector_ranked  v ON v.property_id = p.property_id
         LEFT JOIN keyword_ranked k ON k.property_id = p.property_id
-        LEFT JOIN property_pricing pr ON pr.property_id = p.property_id AND pr.target_month = %(month)s
+        LEFT JOIN {PRICING} pr ON pr.property_id = p.property_id AND pr.target_month = %(month)s
         WHERE (v.property_id IS NOT NULL OR k.property_id IS NOT NULL) {filt_p}
         ORDER BY score DESC, p.property_id
         LIMIT {limit}
@@ -93,7 +115,7 @@ def hybrid_search(q: str, month: int, *, semantic: bool = True,
                0.0 AS vec_rrf, 1.0 AS kw_rrf, 1.0 AS score,
                FALSE AS in_vector, TRUE AS in_keyword
         FROM properties p
-        LEFT JOIN property_pricing pr ON pr.property_id = p.property_id AND pr.target_month = %(month)s
+        LEFT JOIN {PRICING} pr ON pr.property_id = p.property_id AND pr.target_month = %(month)s
         WHERE body_tsv @@ websearch_to_tsquery('english', %(q)s) {filt_p}
         ORDER BY body_tsv <@> to_bm25query(to_tsvector('english', %(q)s), 'idx_prop_bm25')
         LIMIT {limit}
@@ -106,7 +128,7 @@ def pricing_for(property_id: int, month: int) -> dict | None:
     rows = db.query(f"""
         SELECT pr.*, p.title, {DISPLAY_NAME_SQL_POS} AS display_name,
                p.destination, p.country, p.property_type
-        FROM property_pricing pr JOIN properties p ON p.property_id = pr.property_id
+        FROM {pricing_table()} pr JOIN properties p ON p.property_id = pr.property_id
         WHERE pr.property_id = %s AND pr.target_month = %s
     """, (property_id, month))
     return rows[0] if rows else None
@@ -114,10 +136,10 @@ def pricing_for(property_id: int, month: int) -> dict | None:
 
 def price_curve(property_id: int) -> list[dict]:
     """All 12 months for one property — the dynamic-pricing line chart."""
-    return db.query("""
+    return db.query(f"""
         SELECT target_month, base_price, suggested_price, season_index,
                season_uplift, comp_uplift, fx_uplift, holiday_uplift
-        FROM property_pricing WHERE property_id = %s ORDER BY target_month
+        FROM {pricing_table()} WHERE property_id = %s ORDER BY target_month
     """, (property_id,))
 
 
@@ -146,7 +168,7 @@ def comps_within(property_id: int, radius_mi: float = 20, month: int = 7,
                ROUND((ST_Distance(p.geo, me.geo)/1609.34)::numeric, 1) AS miles
         FROM properties p
         CROSS JOIN me
-        LEFT JOIN property_pricing pr
+        LEFT JOIN {pricing_table()} pr
                ON pr.property_id = p.property_id AND pr.target_month = %(month)s
         WHERE p.property_id <> %(pid)s
           AND p.geo IS NOT NULL
@@ -214,10 +236,10 @@ def latest_decision(property_id: int, month: int) -> dict | None:
 
 
 def market_summary(month: int) -> dict:
-    rows = db.query("""
+    rows = db.query(f"""
         SELECT count(*) AS listings,
                ROUND(AVG(suggested_price - base_price)::numeric, 2) AS avg_uplift,
                ROUND((100*AVG((suggested_price-base_price)/NULLIF(base_price,0)))::numeric,1) AS avg_uplift_pct
-        FROM property_pricing WHERE target_month = %s
+        FROM {pricing_table()} WHERE target_month = %s
     """, (month,))
     return rows[0] if rows else {}
