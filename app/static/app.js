@@ -85,6 +85,7 @@ function renderResults(rows) {
 $("#go").onclick = runSearch;
 $("#q").addEventListener("keydown", e => { if (e.key === "Enter") runSearch(); });
 let currentStudioId = null;   // track the open Pricing Studio listing so month changes refresh it
+let currentPrice = null;      // the pricing row currently shown (for Accept/Override)
 $("#month").onchange = () => {
   if (!$("#pane-search").classList.contains("hidden")) runSearch();
   else if (!$("#pane-studio").classList.contains("hidden") && currentStudioId) openStudio(currentStudioId);
@@ -109,12 +110,20 @@ async function openStudio(pid) {
       api(`/api/comps/${pid}?radius_mi=20&month=${m}`),
       api(`/api/property/${pid}`)
     ]);
+    currentPrice = price;
     $("#stTitle").textContent = price.display_name || price.title;
     $("#stSub").textContent = `${price.title} · ${price.destination} · ${price.property_type} · ${monthName(m)}`;
     renderDescription(detail);
     renderWaterfall(price);
+    renderImpact(price);
     renderCurve(curve.curve);
     renderComps(comps.comps);
+    $("#overridePrice").value = "";
+    // show any prior decision for this listing/month
+    try {
+      const dec = await api(`/api/decision/${pid}?month=${m}`);
+      renderApplied(dec && dec.applied_price ? dec : null);
+    } catch (e) { renderApplied(null); }
   } catch (e) {
     $("#stTitle").textContent = "Could not load pricing";
     $("#stWaterfall").innerHTML = `<div class="err">${e.message}</div>`;
@@ -131,6 +140,45 @@ function renderDescription(d) {
   if (d.title && text.startsWith(d.title)) text = text.slice(d.title.length).replace(/^[.\s]+/, "");
   const amen = d.amenities ? `<div class="amen">${d.amenities.split(",").map(a=>`<span class="pill2">${a.trim()}</span>`).join("")}</div>` : "";
   el.innerHTML = `<div class="desc">${text.trim()}</div>${amen}`;
+}
+
+// Estimated extra revenue per month vs. holding the flat base price.
+// Assumes ~18 booked nights/month (a transparent demo assumption).
+const NIGHTS_PER_MONTH = 18;
+function renderImpact(p) {
+  const el = $("#stImpact");
+  if (!el || !p.suggested_price || !p.base_price) { if (el) el.innerHTML = ""; return; }
+  const perNight = p.suggested_price - p.base_price;
+  const monthly = Math.round(perNight * NIGHTS_PER_MONTH);
+  if (perNight <= 0) { el.innerHTML = ""; return; }
+  el.innerHTML = `<span class="impact-num">+${money(monthly)}</span>
+    estimated extra revenue this month vs. your flat base price
+    <span class="muted">(${money(perNight)}/night × ~${NIGHTS_PER_MONTH} booked nights)</span>`;
+}
+
+function renderApplied(dec) {
+  const el = $("#stApplied");
+  if (!el) return;
+  if (!dec) { el.innerHTML = ""; return; }
+  const when = dec.decided_at ? new Date(dec.decided_at).toLocaleString() : "";
+  el.innerHTML = `✓ You ${dec.action === "override" ? "set" : "accepted"} <b>${money(dec.applied_price)}</b>
+    <span class="muted">· saved to Lakebase ${when}</span>`;
+}
+
+async function applyPrice(price, action) {
+  if (!currentStudioId || !currentPrice) return;
+  try {
+    const r = await fetch("/api/apply-price", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ property_id: currentStudioId, month: getMonth(),
+                             applied_price: price, action })
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const d = await r.json();
+    renderApplied({ applied_price: d.applied_price, action: d.action, decided_at: new Date().toISOString() });
+  } catch (e) {
+    $("#stApplied").innerHTML = `<span class="err">Could not save: ${e.message}</span>`;
+  }
 }
 
 function wfRow(label, val, positive=true) {
@@ -163,6 +211,11 @@ function renderComps(comps) {
     `<div class="comprow"><span>${c.display_name || c.title} <span class="muted">· ${c.title} · ${c.miles} mi</span></span>
      <span>${money(c.suggested_price || c.base_price)}</span></div>`).join("");
 }
+$("#acceptBtn").onclick = () => { if (currentPrice) applyPrice(currentPrice.suggested_price, "accept"); };
+$("#overrideBtn").onclick = () => {
+  const v = parseFloat($("#overridePrice").value);
+  if (!isNaN(v) && v > 0) applyPrice(v, "override");
+};
 $("#studioRandom").onclick = (e) => { e.preventDefault(); loadSampleStudio(); };
 async function loadSampleStudio() {
   try {

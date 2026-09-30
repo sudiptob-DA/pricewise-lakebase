@@ -97,6 +97,29 @@ def save(req: SaveReq):
     return {"saved": True, "property_id": req.property_id}
 
 
+class ApplyReq(BaseModel):
+    property_id: int
+    month: int
+    applied_price: float
+    action: str = "accept"          # "accept" or "override"
+    host_id: str = "demo-host"
+
+
+@app.post("/api/apply-price")
+def apply_price(req: ApplyReq):
+    try:
+        result = queries.apply_price(req.property_id, req.month, req.applied_price,
+                                     req.action, req.host_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"apply failed: {e}")
+    return {"ok": True, **result}
+
+
+@app.get("/api/decision/{property_id}")
+def decision(property_id: int, month: int = Query(7, ge=1, le=12)):
+    return queries.latest_decision(property_id, month) or {}
+
+
 # Serve the static UI at "/". Mounted last so /api/* wins.
 if os.path.isdir(STATIC_DIR):
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

@@ -82,8 +82,13 @@ display(spark.sql(f"SELECT * FROM {CAT}.{SCH}.v_underpricing ORDER BY uplift_pct
 # MAGIC ### Set up (UI — one time)
 # MAGIC For Autoscaling `postgres` projects, configure Lakehouse Sync from the Lakebase project:
 # MAGIC **Lakebase project → the branch/table → enable Sync to Unity Catalog** (creates a governed Delta
-# MAGIC table in `hackathon.data_axle`). Point it at `saved_properties`. Target table name e.g.
-# MAGIC `hackathon.data_axle.saved_properties_cdf`.
+# MAGIC table in `hackathon.data_axle`).
+# MAGIC
+# MAGIC **Best table to sync: `pricing_decisions`** — the host's Accept/Override actions from the app
+# MAGIC (property_id, month, base/suggested/applied price, action, timestamp). It's the richest write-back:
+# MAGIC it shows *what the host actually did* with our recommendation, which is gold for analytics
+# MAGIC ("acceptance rate", "how far overrides deviate from suggested"). Also sync `saved_properties` if
+# MAGIC you like. Target names e.g. `hackathon.data_axle.pricing_decisions_cdf`.
 
 # COMMAND ----------
 # MAGIC %md
@@ -92,24 +97,30 @@ display(spark.sql(f"SELECT * FROM {CAT}.{SCH}.v_underpricing ORDER BY uplift_pct
 # MAGIC 2. Wait for the sync interval, then query the synced Delta table in UC below.
 
 # COMMAND ----------
-SYNCED_CDF = f"{CAT}.{SCH}.saved_properties_cdf"   # name you chose when enabling Lakehouse Sync
+SYNCED_CDF = f"{CAT}.{SCH}.pricing_decisions_cdf"   # name you chose when enabling Lakehouse Sync
 try:
     display(spark.sql(f"""
       SELECT * FROM {SYNCED_CDF} ORDER BY _sort_by DESC LIMIT 20
     """))
-    # latest-value view (current saved set), collapsing SCD2 history
+    # latest-value view (current decision per listing/month), collapsing SCD2 history
     spark.sql(f"""
-      CREATE OR REPLACE VIEW {CAT}.{SCH}.v_saved_current AS
+      CREATE OR REPLACE VIEW {CAT}.{SCH}.v_decisions_current AS
       WITH ranked AS (
-        SELECT *, row_number() OVER (PARTITION BY save_id ORDER BY _sort_by DESC) rn
+        SELECT *, row_number() OVER (PARTITION BY decision_id ORDER BY _sort_by DESC) rn
         FROM {SYNCED_CDF}
       )
       SELECT * FROM ranked WHERE rn = 1 AND _pg_change_type <> 'delete'
     """)
-    print("✅ Lakehouse Sync verified; latest-value view v_saved_current created.")
+    # a genuinely useful analytic: how often hosts accept vs override, and override deviation
+    display(spark.sql(f"""
+      SELECT action, count(*) n,
+             round(avg(applied_price - suggested_price),2) avg_deviation_from_suggested
+      FROM {CAT}.{SCH}.v_decisions_current GROUP BY action
+    """))
+    print("✅ Lakehouse Sync verified; v_decisions_current created (acceptance analytics).")
 except Exception as e:
-    print("Synced CDF table not found yet — enable Lakehouse Sync on saved_properties in the")
-    print("Lakebase project UI, save a listing in the app, then re-run. Detail:", str(e)[:160])
+    print("Synced CDF table not found yet — enable Lakehouse Sync on pricing_decisions in the")
+    print("Lakebase project UI, click Accept/Override in the app, then re-run. Detail:", str(e)[:160])
 
 # COMMAND ----------
 # MAGIC %md

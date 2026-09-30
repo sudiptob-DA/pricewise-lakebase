@@ -169,6 +169,50 @@ def save_property(user_id: str, property_id: int) -> None:
                (user_id, property_id))
 
 
+def _ensure_decisions_table() -> None:
+    """Create the pricing_decisions table on first use (OLTP write target + Lakehouse Sync source)."""
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS pricing_decisions (
+            decision_id     BIGSERIAL PRIMARY KEY,
+            property_id     BIGINT NOT NULL,
+            target_month    INT NOT NULL,
+            host_id         TEXT,
+            base_price      REAL,
+            suggested_price REAL,
+            applied_price   REAL NOT NULL,
+            action          TEXT NOT NULL,          -- 'accept' | 'override'
+            decided_at      TIMESTAMPTZ DEFAULT now()
+        )
+    """)
+
+
+def apply_price(property_id: int, month: int, applied_price: float, action: str,
+                host_id: str = "demo-host") -> dict:
+    """Record a host's pricing decision (accept suggested, or override) — a live Lakebase OLTP write."""
+    _ensure_decisions_table()
+    # capture the base + suggested at decision time for an honest audit trail
+    ctx = pricing_for(property_id, month) or {}
+    db.execute("""
+        INSERT INTO pricing_decisions
+          (property_id, target_month, host_id, base_price, suggested_price, applied_price, action)
+        VALUES (%s,%s,%s,%s,%s,%s,%s)
+    """, (property_id, month, host_id,
+          ctx.get("base_price"), ctx.get("suggested_price"), applied_price, action))
+    return {"applied_price": applied_price, "action": action,
+            "base_price": ctx.get("base_price"), "suggested_price": ctx.get("suggested_price")}
+
+
+def latest_decision(property_id: int, month: int) -> dict | None:
+    _ensure_decisions_table()
+    rows = db.query("""
+        SELECT applied_price, action, decided_at
+        FROM pricing_decisions
+        WHERE property_id = %s AND target_month = %s
+        ORDER BY decided_at DESC LIMIT 1
+    """, (property_id, month))
+    return rows[0] if rows else None
+
+
 def market_summary(month: int) -> dict:
     rows = db.query("""
         SELECT count(*) AS listings,

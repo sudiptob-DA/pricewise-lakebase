@@ -64,7 +64,17 @@
         <div class="sub muted" id="stSub"></div>
         <div id="stDescription" class="listing-desc"></div>
         <div class="waterfall" id="stWaterfall"></div>
-        <div class="sub muted" style="margin-top:8px">Served &lt;200ms from Lakebase · price for selected month</div>
+        <div id="stImpact" class="impact"></div>
+        <div class="actionrow">
+          <button class="btn" id="acceptBtn">Accept suggested price</button>
+          <div class="override">
+            <span class="muted">or set your own</span>
+            <input id="overridePrice" type="number" min="0" placeholder="$"/>
+            <button class="btn ghost" id="overrideBtn">Apply</button>
+          </div>
+        </div>
+        <div id="stApplied" class="applied"></div>
+        <div class="sub muted" style="margin-top:8px">Served &lt;200ms from Lakebase · price for selected month · your decision is saved to Lakebase</div>
       </div>
       <div class="panel">
         <h2>Price across the year</h2>
