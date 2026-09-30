@@ -34,8 +34,14 @@ async function runSearch() {
   $("#results").innerHTML = "";
   try {
     const data = await api("/api/search?" + params.toString());
-    $("#searchStatus").textContent =
-      `${data.count} results · ${data.semantic ? "hybrid (semantic + keyword)" : "keyword only"} · ${monthName(data.month)}`;
+    const legend = data.semantic ? `
+      <div class="legend">
+        <span class="lg"><i class="dot vec"></i><b>Smart find</b> — our AI matched the <i>meaning</i>; plain keyword search would miss these</span>
+        <span class="lg"><i class="dot kw"></i><b>Keyword match</b> — matched the exact words</span>
+        <span class="lg"><i class="dot both"></i><b>Both</b> — strongest matches</span>
+      </div>` : `<div class="legend"><span class="lg">Keyword-only mode — turn on <b>Smart understanding</b> to see AI matches.</span></div>`;
+    $("#searchStatus").innerHTML =
+      `<div class="statusline">${data.count} listings · ${data.semantic ? "smart + keyword search" : "keyword only"} · ${monthName(data.month)}</div>${legend}`;
     renderResults(data.results);
   } catch (e) {
     $("#searchStatus").innerHTML = `<div class="err">Search failed: ${e.message}</div>`;
@@ -62,7 +68,7 @@ function renderResults(rows) {
     const el = document.createElement("div");
     el.className = "card" + (r.in_vector && !r.in_keyword ? " semantic" : "");
     el.innerHTML = `
-      <div class="title">${r.title || "Untitled"}</div>
+      <div class="title">${r.title || "Untitled"} <span class="pid">#${r.property_id}</span></div>
       <div class="sub">${r.destination || ""} · ${r.property_type || ""}</div>
       <div class="pricepill">
         <b>${money(r.suggested_price)}</b><span>/night</span>

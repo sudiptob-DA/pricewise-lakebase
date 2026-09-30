@@ -55,7 +55,17 @@ a{color:var(--blue);text-decoration:none}
 .card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(27,49,57,.12)}
 .card.semantic{border-color:var(--lava);box-shadow:0 0 0 1px var(--lava) inset,var(--shadow)}
 .card .title{font-weight:700;font-size:15px}
+.card .title .pid{color:var(--muted);font-weight:600;font-size:11px}
 .card .sub{color:var(--muted);font-size:12px;margin-top:2px}
+
+/* legend + status */
+.statusline{color:var(--ink);font-size:13px;font-weight:600;margin-bottom:6px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;font-size:11px;color:var(--ink)}
+.legend .lg{display:flex;align-items:center;gap:6px}
+.legend .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.legend .dot.vec{background:var(--lava)}
+.legend .dot.kw{background:var(--blue)}
+.legend .dot.both{background:var(--green)}
 .pricepill{display:inline-flex;align-items:baseline;gap:6px;margin-top:12px;background:var(--navy);color:#fff;border-radius:10px;padding:8px 12px}
 .pricepill b{font-size:18px}
 .pricepill .up{color:var(--gold);font-size:12px;font-weight:700}

@@ -16,15 +16,14 @@ def hybrid_search(q: str, month: int, *, semantic: bool = True,
     live suggested price for `month`. Structured filters narrow both rankers.
     When semantic=False, returns keyword-only (the demo's "Semantic toggle off").
     """
-    # Build filter twice: bare (for CTEs that read FROM properties, no alias) and
-    # p-prefixed (for the outer query where properties is aliased p). Same params both times.
-    conds = []
-    if max_price is not None:
-        conds.append(("base_price <= %(max_price)s", "p.base_price <= %(max_price)s"))
-    if destination:
-        conds.append(("destination = %(destination)s", "p.destination = %(destination)s"))
-    filt_bare = (" AND " + " AND ".join(c[0] for c in conds)) if conds else ""
-    filt_p    = (" AND " + " AND ".join(c[1] for c in conds)) if conds else ""
+    # destination narrows the candidate pool inside the CTEs (bare = no alias, p = aliased outer).
+    dest_bare = " AND destination = %(destination)s" if destination else ""
+    dest_p    = " AND p.destination = %(destination)s" if destination else ""
+    # max_price filters on the SUGGESTED (displayed) price — applied in the outer query where
+    # property_pricing (pr) is joined, so what the user types matches what they see on the card.
+    price_p   = " AND pr.suggested_price <= %(max_price)s" if max_price is not None else ""
+    filt_bare = dest_bare
+    filt_p    = dest_p + price_p
 
     qvec = db.embed(q) if semantic else None
 
