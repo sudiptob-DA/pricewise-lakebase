@@ -64,13 +64,16 @@ seasonality insight (the whole business case), and why reviews are unusable for 
 - Build the vector + BM25 + geo indexes.
 - 🔎 **Checkpoint:** a manual hybrid query returns sensible ranked results.
 
-## Phase 6 — Reverse ETL (UC → Lakebase) ⬜  → `notebooks/06_reverse_etl_sync.py`
+## Phase 6 — Reverse ETL (UC → Lakebase) 🔎 (written; UI sync + verify)  → `notebooks/06_reverse_etl_sync.py`
+> Note: `pricewise-db` is a `postgres` (Autoscaling) project, so the synced-table CLI/API path isn't
+> available — create the sync in the UI (Catalog → serve_property_pricing → Create ▸ Synced table),
+> then verify from the notebook.
 **Goal:** keep Lakebase fed from gold via Synced Tables.
 - Configure Synced Table(s): gold features → `property_pricing`; property doc/embeddings → `properties`.
 - Choose sync mode (snapshot/triggered) + the "refresh" trigger for the demo.
 - 🔎 **Checkpoint:** update a gold row → see it reflected in Lakebase.
 
-## Phase 7 — Online feature serving ⬜  → `features/`
+## Phase 7 — Online feature serving 🔎 (written; run to deploy)  → `notebooks/07_online_feature_serving.py`
 **Goal:** the "real-time serving is the goal" pillar.
 - Publish pricing features to the Online Feature Store on Lakebase.
 - Time a point lookup by `property_id` (< 200ms target).
@@ -83,7 +86,7 @@ seasonality insight (the whole business case), and why reviews are unusable for 
 - Static tabs: Search · Map · Stay detail · Pricing Studio · Insights.
 - 🔎 **Checkpoint:** app runs locally against Lakebase; search + price pills work.
 
-## Phase 9 — Genie + Lakehouse Sync ⬜  → `genie/` + `notebooks/07_lakehouse_sync.py`
+## Phase 9 — Genie + Lakehouse Sync 🔎 (written; UI setup + verify)  → `notebooks/09_genie_and_sync.py`
 **Goal:** analytics + the write-back loop.
 - Genie space over gold; (optional) Revenue Copilot narration.
 - Lakehouse Sync: `search_events`/`saved_properties` → UC (SCD2) for analytics.
