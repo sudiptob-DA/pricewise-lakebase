@@ -27,6 +27,10 @@ a{color:var(--blue);text-decoration:none}
 .tab:hover{color:#fff}
 
 .wrap{max-width:1180px;margin:0 auto;padding:22px 24px}
+.listing-desc{margin:12px 0;padding:12px 14px;background:var(--oat);border-radius:10px}
+.listing-desc .desc{font-size:13px;color:var(--ink);line-height:1.5}
+.listing-desc .amen{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+.listing-desc .pill2{font-size:11px;background:#fff;border:1px solid var(--line);border-radius:20px;padding:3px 10px;color:var(--ink)}
 .panetitle{margin-bottom:16px}
 .panetitle h1{font-size:22px;margin:0 0 4px;letter-spacing:-.3px}
 .panetitle p{margin:0;color:var(--muted);font-size:13px;max-width:640px}

@@ -84,10 +84,16 @@ function renderResults(rows) {
 
 $("#go").onclick = runSearch;
 $("#q").addEventListener("keydown", e => { if (e.key === "Enter") runSearch(); });
-$("#month").onchange = () => { if (!$("#pane-search").classList.contains("hidden")) runSearch(); };
+let currentStudioId = null;   // track the open Pricing Studio listing so month changes refresh it
+$("#month").onchange = () => {
+  if (!$("#pane-search").classList.contains("hidden")) runSearch();
+  else if (!$("#pane-studio").classList.contains("hidden") && currentStudioId) openStudio(currentStudioId);
+  else if (!$("#pane-insights").classList.contains("hidden")) loadMarket();
+};
 
 /* ---------- pricing studio ---------- */
 async function openStudio(pid) {
+  currentStudioId = pid;
   document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
   document.querySelector('.tab[data-tab="studio"]').classList.add("active");
   document.querySelectorAll(".tabpane").forEach(p => p.classList.add("hidden"));
@@ -97,13 +103,15 @@ async function openStudio(pid) {
 
   const m = getMonth();
   try {
-    const [price, curve, comps] = await Promise.all([
+    const [price, curve, comps, detail] = await Promise.all([
       api(`/api/pricing/${pid}?month=${m}`),
       api(`/api/pricing/${pid}/curve`),
-      api(`/api/comps/${pid}?radius_mi=20&month=${m}`)
+      api(`/api/comps/${pid}?radius_mi=20&month=${m}`),
+      api(`/api/property/${pid}`)
     ]);
     $("#stTitle").textContent = price.display_name || price.title;
     $("#stSub").textContent = `${price.title} · ${price.destination} · ${price.property_type} · ${monthName(m)}`;
+    renderDescription(detail);
     renderWaterfall(price);
     renderCurve(curve.curve);
     renderComps(comps.comps);
@@ -111,6 +119,18 @@ async function openStudio(pid) {
     $("#stTitle").textContent = "Could not load pricing";
     $("#stWaterfall").innerHTML = `<div class="err">${e.message}</div>`;
   }
+}
+
+function renderDescription(d) {
+  const el = $("#stDescription");
+  if (!el) return;
+  // search_text = "title. description. Located in <dest>, <country>. Amenities: ...".
+  // Show the descriptive prose: drop the leading title and the trailing "Located in"/"Amenities" tails.
+  let text = d.description || d.search_text || "";
+  text = text.split(/\.\s*Located in/i)[0];              // cut the location/amenity tail
+  if (d.title && text.startsWith(d.title)) text = text.slice(d.title.length).replace(/^[.\s]+/, "");
+  const amen = d.amenities ? `<div class="amen">${d.amenities.split(",").map(a=>`<span class="pill2">${a.trim()}</span>`).join("")}</div>` : "";
+  el.innerHTML = `<div class="desc">${text.trim()}</div>${amen}`;
 }
 
 function wfRow(label, val, positive=true) {
