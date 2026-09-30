@@ -59,10 +59,10 @@ a{color:var(--blue);text-decoration:none}
 .card .sub{color:var(--muted);font-size:12px;margin-top:2px}
 
 /* legend + status */
-.statusline{color:var(--ink);font-size:13px;font-weight:600;margin-bottom:6px}
-.legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;font-size:11px;color:var(--ink)}
-.legend .lg{display:flex;align-items:center;gap:6px}
-.legend .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.statusline{color:var(--ink);font-size:13px;font-weight:600;margin-bottom:8px}
+.legend{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:18px;font-size:12px;color:var(--ink)}
+.legend .lg{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.legend .dot{width:10px;height:10px;border-radius:50%;flex:0 0 10px}
 .legend .dot.vec{background:var(--lava)}
 .legend .dot.kw{background:var(--blue)}
 .legend .dot.both{background:var(--green)}

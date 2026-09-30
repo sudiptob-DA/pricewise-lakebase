@@ -7,6 +7,20 @@ from . import db
 RRF_K = 60          # RRF damping constant (lower = rank position matters more)
 LIST_LIMIT = 80     # candidates pulled from each ranker before fusion
 
+# The wanderbricks dataset has no real property names (title is generic like "Villa in Phuket").
+# We synthesize a friendly, STABLE name from the property_id using word-bank arrays — deterministic,
+# so the same listing always shows the same name. Used as `display_name` in card titles.
+# NOTE: %% because psycopg treats a single % as a parameter marker; %% = literal modulo.
+DISPLAY_NAME_SQL = """
+  ((ARRAY['Azure','Golden','Serene','Coastal','Hidden','Sunlit','Palm','Ocean','Bella','Casa',
+          'Marina','Lagoon','Sunset','Terra','Amara','Vista','Breeze','Coral','Zephyr','Laguna'])
+     [(p.property_id %% 20) + 1]
+   || ' ' ||
+   (ARRAY['Retreat','Haven','Escape','Nest','Sands','Shores','Hideaway','Cove','Terrace','Garden',
+          'Loft','House','Villa','Suites','Bungalow','Residence','Quarters','Lodge','Palms','Bay'])
+     [((p.property_id / 7) %% 20) + 1])
+"""
+
 
 def hybrid_search(q: str, month: int, *, semantic: bool = True,
                   max_price: float | None = None, min_guests: int | None = None,
@@ -50,7 +64,8 @@ def hybrid_search(q: str, month: int, *, semantic: bool = True,
           WHERE TRUE {filt_bare}
           ORDER BY body_tsv <@> to_bm25query(to_tsvector('english', %(q)s), 'idx_prop_bm25') LIMIT {LIST_LIMIT}
         )
-        SELECT p.property_id, p.title, p.property_type, p.destination, p.country,
+        SELECT p.property_id, p.title, {DISPLAY_NAME_SQL} AS display_name,
+               p.property_type, p.destination, p.country,
                p.base_price, pr.suggested_price, pr.season_uplift, pr.comp_uplift,
                pr.fx_uplift, pr.holiday_uplift, pr.demand_pct,
                COALESCE(1.0/(%(k)s+v.rank),0) AS vec_rrf,
@@ -68,7 +83,8 @@ def hybrid_search(q: str, month: int, *, semantic: bool = True,
         """
     else:
         sql = f"""
-        SELECT p.property_id, p.title, p.property_type, p.destination, p.country,
+        SELECT p.property_id, p.title, {DISPLAY_NAME_SQL} AS display_name,
+               p.property_type, p.destination, p.country,
                p.base_price, pr.suggested_price, pr.season_uplift, pr.comp_uplift,
                pr.fx_uplift, pr.holiday_uplift, pr.demand_pct,
                0.0 AS vec_rrf, 1.0 AS kw_rrf, 1.0 AS score,

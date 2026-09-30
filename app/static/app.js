@@ -68,8 +68,8 @@ function renderResults(rows) {
     const el = document.createElement("div");
     el.className = "card" + (r.in_vector && !r.in_keyword ? " semantic" : "");
     el.innerHTML = `
-      <div class="title">${r.title || "Untitled"} <span class="pid">#${r.property_id}</span></div>
-      <div class="sub">${r.destination || ""} · ${r.property_type || ""}</div>
+      <div class="title">${r.display_name || r.title || "Untitled"}</div>
+      <div class="sub">${r.title || ""} · ${r.destination || ""} <span class="pid">#${r.property_id}</span></div>
       <div class="pricepill">
         <b>${money(r.suggested_price)}</b><span>/night</span>
         ${uplift != null ? `<span class="up">${uplift>=0?"+":""}${uplift}%</span>` : ""}
