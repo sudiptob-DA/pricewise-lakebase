@@ -10,7 +10,9 @@ LIST_LIMIT = 80     # candidates pulled from each ranker before fusion
 # The wanderbricks dataset has no real property names (title is generic like "Villa in Phuket").
 # We synthesize a friendly, STABLE name from the property_id using word-bank arrays — deterministic,
 # so the same listing always shows the same name. Used as `display_name` in card titles.
-# NOTE: %% because psycopg treats a single % as a parameter marker; %% = literal modulo.
+# Friendly deterministic name from property_id (dataset has no real names).
+# %% because psycopg treats a single % as a placeholder marker in BOTH positional and named
+# modes whenever params are passed; %% renders as a literal % (modulo).
 DISPLAY_NAME_SQL = """
   ((ARRAY['Azure','Golden','Serene','Coastal','Hidden','Sunlit','Palm','Ocean','Bella','Casa',
           'Marina','Lagoon','Sunset','Terra','Amara','Vista','Breeze','Coral','Zephyr','Laguna'])
@@ -20,6 +22,7 @@ DISPLAY_NAME_SQL = """
           'Loft','House','Villa','Suites','Bungalow','Residence','Quarters','Lodge','Palms','Bay'])
      [((p.property_id / 7) %% 20) + 1])
 """
+DISPLAY_NAME_SQL_POS = DISPLAY_NAME_SQL   # same escaping works for positional queries too
 
 
 def hybrid_search(q: str, month: int, *, semantic: bool = True,
@@ -100,8 +103,9 @@ def hybrid_search(q: str, month: int, *, semantic: bool = True,
 
 
 def pricing_for(property_id: int, month: int) -> dict | None:
-    rows = db.query("""
-        SELECT pr.*, p.title, p.destination, p.country, p.property_type
+    rows = db.query(f"""
+        SELECT pr.*, p.title, {DISPLAY_NAME_SQL_POS} AS display_name,
+               p.destination, p.country, p.property_type
         FROM property_pricing pr JOIN properties p ON p.property_id = pr.property_id
         WHERE pr.property_id = %s AND pr.target_month = %s
     """, (property_id, month))
@@ -134,9 +138,10 @@ def comps_within(property_id: int, radius_mi: float = 20, month: int = 7,
     """
     meters = radius_mi * 1609.34
     # Use explicit CROSS JOIN (not comma-join) so the LEFT JOIN can reference p.
-    return db.query("""
+    # Named placeholders here, so DISPLAY_NAME_SQL uses %% for the modulo.
+    return db.query(f"""
         WITH me AS (SELECT geo FROM properties WHERE property_id = %(pid)s)
-        SELECT p.property_id, p.title, p.destination, p.base_price,
+        SELECT p.property_id, p.title, {DISPLAY_NAME_SQL} AS display_name, p.destination, p.base_price,
                pr.suggested_price,
                ROUND((ST_Distance(p.geo, me.geo)/1609.34)::numeric, 1) AS miles
         FROM properties p

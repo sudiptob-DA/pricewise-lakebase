@@ -59,13 +59,14 @@ a{color:var(--blue);text-decoration:none}
 .card .sub{color:var(--muted);font-size:12px;margin-top:2px}
 
 /* legend + status */
-.statusline{color:var(--ink);font-size:13px;font-weight:600;margin-bottom:8px}
-.legend{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:18px;font-size:12px;color:var(--ink)}
-.legend .lg{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
-.legend .dot{width:10px;height:10px;border-radius:50%;flex:0 0 10px}
-.legend .dot.vec{background:var(--lava)}
-.legend .dot.kw{background:var(--blue)}
-.legend .dot.both{background:var(--green)}
+.statusline{color:var(--ink);font-size:13px;font-weight:600;margin-bottom:10px}
+.legend{display:flex;flex-direction:column;gap:8px;margin-bottom:18px;font-size:12px;color:var(--muted)}
+.legend .lg{display:flex;align-items:center;gap:10px}
+.legend .chip{flex:0 0 auto}
+.chip{display:inline-block;font-size:10px;font-weight:800;padding:4px 10px;border-radius:20px;white-space:nowrap}
+.chip.both{background:#e5f6ef;color:var(--green)}
+.chip.vec{background:#fff1ee;color:var(--lava)}
+.chip.kw{background:#eaf1f6;color:var(--blue)}
 .pricepill{display:inline-flex;align-items:baseline;gap:6px;margin-top:12px;background:var(--navy);color:#fff;border-radius:10px;padding:8px 12px}
 .pricepill b{font-size:18px}
 .pricepill .up{color:var(--gold);font-size:12px;font-weight:700}

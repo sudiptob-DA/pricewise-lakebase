@@ -36,12 +36,12 @@ async function runSearch() {
     const data = await api("/api/search?" + params.toString());
     const legend = data.semantic ? `
       <div class="legend">
-        <span class="lg"><i class="dot vec"></i><b>Smart find</b> — our AI matched the <i>meaning</i>; plain keyword search would miss these</span>
-        <span class="lg"><i class="dot kw"></i><b>Keyword match</b> — matched the exact words</span>
-        <span class="lg"><i class="dot both"></i><b>Both</b> — strongest matches</span>
-      </div>` : `<div class="legend"><span class="lg">Keyword-only mode — turn on <b>Smart understanding</b> to see AI matches.</span></div>`;
+        <span class="lg"><span class="chip both">★ Top match</span> found by AI <i>and</i> exact words — the strongest results</span>
+        <span class="lg"><span class="chip vec">✦ AI found this</span> matched by meaning; a plain keyword search would miss it</span>
+        <span class="lg"><span class="chip kw">Exact words</span> matched the words in the listing</span>
+      </div>` : `<div class="legend"><span class="lg">Keyword-only mode — turn on <b>Smart understanding</b> to see what AI surfaces.</span></div>`;
     $("#searchStatus").innerHTML =
-      `<div class="statusline">${data.count} listings · ${data.semantic ? "smart + keyword search" : "keyword only"} · ${monthName(data.month)}</div>${legend}`;
+      `<div class="statusline">${data.count} listings · ${data.semantic ? "AI + keyword search" : "keyword only"} · ${monthName(data.month)}</div>${legend}`;
     renderResults(data.results);
   } catch (e) {
     $("#searchStatus").innerHTML = `<div class="err">Search failed: ${e.message}</div>`;
@@ -49,9 +49,9 @@ async function runSearch() {
 }
 
 function tagFor(r) {
-  if (r.in_vector && r.in_keyword) return `<span class="tag both">✦ both rankers</span>`;
-  if (r.in_vector) return `<span class="tag vec">✦ semantic find</span>`;
-  return `<span class="tag kw">keyword match</span>`;
+  if (r.in_vector && r.in_keyword) return `<span class="tag both">★ Top match</span>`;
+  if (r.in_vector) return `<span class="tag vec">✦ AI found this</span>`;
+  return `<span class="tag kw">Exact words</span>`;
 }
 
 function renderResults(rows) {
@@ -102,8 +102,8 @@ async function openStudio(pid) {
       api(`/api/pricing/${pid}/curve`),
       api(`/api/comps/${pid}?radius_mi=20&month=${m}`)
     ]);
-    $("#stTitle").textContent = price.title;
-    $("#stSub").textContent = `${price.destination} · ${price.property_type} · ${monthName(m)}`;
+    $("#stTitle").textContent = price.display_name || price.title;
+    $("#stSub").textContent = `${price.title} · ${price.destination} · ${price.property_type} · ${monthName(m)}`;
     renderWaterfall(price);
     renderCurve(curve.curve);
     renderComps(comps.comps);
@@ -140,7 +140,7 @@ function renderCurve(curve) {
 function renderComps(comps) {
   if (!comps.length) { $("#stComps").innerHTML = `<div class="muted">No comps within 20 miles.</div>`; return; }
   $("#stComps").innerHTML = comps.map(c =>
-    `<div class="comprow"><span>${c.title} <span class="muted">· ${c.miles} mi</span></span>
+    `<div class="comprow"><span>${c.display_name || c.title} <span class="muted">· ${c.title} · ${c.miles} mi</span></span>
      <span>${money(c.suggested_price || c.base_price)}</span></div>`).join("");
 }
 $("#studioRandom").onclick = (e) => { e.preventDefault(); loadSampleStudio(); };
