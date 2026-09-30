@@ -49,7 +49,15 @@ seasonality insight (the whole business case), and why reviews are unusable for 
 - Smoke test: trivial `bm25()` + vector query. If unavailable → fall back to `tsvector`/`pgvector`.
 - 🔎 **Checkpoint (critical):** we know for certain which search path we're on.
 
-## Phase 5 — Schema + embeddings ⬜  → `notebooks/05_schema_and_embeddings.py`
+## Phase 5 — Schema + embeddings ✅  → `notebooks/05_schema_and_embeddings.py`
+> **Result:** Lakebase tables live (`properties` vector+BM25+geo, `property_pricing`, `saved_properties`);
+> 18k docs embedded via `databricks-gte-large-en` (1024-dim); native hybrid search (vector+BM25+RRF)
+> returns ranked results with live price. `vector-only` hits confirm the semantic-beats-keyword beat.
+>
+> **Tuning note (polish, not a blocker):** RRF scores are near-flat and results are all `vector-only` or
+> `keyword-only` (no `both` overlap) — the two rankers hit different rows. To sharpen during polish:
+> lower RRF constant (60→~20), widen per-list LIMIT (50→100), apply structured filters to concentrate
+> both lists on the same candidate pool, and/or weight the rankers. Fine for the demo as-is.
 **Goal:** create Lakebase tables and populate vectors.
 - DDL: `properties` (vector + text + geography + filters), `property_pricing`, `search_events`, `saved_properties`.
 - Embed `gold_property_doc` via Model Serving endpoint; write vectors.
