@@ -118,19 +118,23 @@ def comps_within(property_id: int, radius_mi: float = 20, month: int = 7,
     with their suggested price for `month`. (Semantic-similarity comps = ENHANCEMENTS E2.)
     """
     meters = radius_mi * 1609.34
+    # Use explicit CROSS JOIN (not comma-join) so the LEFT JOIN can reference p.
     return db.query("""
-        WITH me AS (SELECT geo FROM properties WHERE property_id = %s)
+        WITH me AS (SELECT geo FROM properties WHERE property_id = %(pid)s)
         SELECT p.property_id, p.title, p.destination, p.base_price,
                pr.suggested_price,
                ROUND((ST_Distance(p.geo, me.geo)/1609.34)::numeric, 1) AS miles
-        FROM properties p, me
-        LEFT JOIN property_pricing pr ON pr.property_id = p.property_id AND pr.target_month = %s
-        WHERE p.property_id <> %s
+        FROM properties p
+        CROSS JOIN me
+        LEFT JOIN property_pricing pr
+               ON pr.property_id = p.property_id AND pr.target_month = %(month)s
+        WHERE p.property_id <> %(pid)s
           AND p.geo IS NOT NULL
-          AND ST_DWithin(p.geo, me.geo, %s)
+          AND me.geo IS NOT NULL
+          AND ST_DWithin(p.geo, me.geo, %(meters)s)
         ORDER BY miles
-        LIMIT %s
-    """, (property_id, month, property_id, meters, limit))
+        LIMIT %(limit)s
+    """, {"pid": property_id, "month": month, "meters": meters, "limit": limit})
 
 
 def destinations() -> list[dict]:

@@ -10,10 +10,13 @@ a{color:var(--blue);text-decoration:none}
 .hidden{display:none!important}
 
 /* top bar */
-.topbar{display:flex;align-items:center;gap:16px;padding:12px 24px;background:var(--navy);color:#fff}
-.logo{font-weight:800;font-size:18px;letter-spacing:-.5px}
+.topbar{display:flex;align-items:center;gap:20px;padding:16px 24px;background:var(--navy);color:#fff}
+.brand{display:flex;flex-direction:column;gap:2px}
+.logo{font-weight:800;font-size:30px;letter-spacing:-1px;line-height:1}
 .logo span{color:var(--lava2)}
+.pitch{font-weight:700;font-size:13px;color:var(--gold);letter-spacing:.2px}
 .tagline{color:#B9C4CA;font-size:12px}
+.sub2{max-width:520px;line-height:1.4}
 .spacer{flex:1}
 .monthsel{background:#26424c;color:#fff;border:1px solid #3a5560;border-radius:8px;padding:6px 10px}
 
@@ -24,6 +27,9 @@ a{color:var(--blue);text-decoration:none}
 .tab:hover{color:#fff}
 
 .wrap{max-width:1180px;margin:0 auto;padding:22px 24px}
+.panetitle{margin-bottom:16px}
+.panetitle h1{font-size:22px;margin:0 0 4px;letter-spacing:-.3px}
+.panetitle p{margin:0;color:var(--muted);font-size:13px;max-width:640px}
 
 /* search bar */
 .searchrow{display:flex;gap:10px;align-items:center;margin-bottom:14px}

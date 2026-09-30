@@ -8,8 +8,11 @@
 </head>
 <body>
   <div class="topbar">
-    <div class="logo">price<span>wise</span></div>
-    <div class="tagline">demand-aware pricing &amp; smart search · on Lakebase</div>
+    <div class="brand">
+      <div class="logo">price<span>wise</span></div>
+      <div class="pitch">Never leave money on the table</div>
+    </div>
+    <div class="tagline sub2">Smart nightly pricing that moves with demand — season, holidays &amp; currency — plus search that just gets what guests want</div>
     <div class="spacer"></div>
     <label class="tagline">Check-in month
       <select id="month" class="monthsel">
@@ -24,19 +27,23 @@
   </div>
 
   <div class="tabs">
-    <div class="tab active" data-tab="search">Search</div>
+    <div class="tab active" data-tab="search">Market Search</div>
     <div class="tab" data-tab="studio">Pricing Studio</div>
-    <div class="tab" data-tab="insights">Insights</div>
+    <div class="tab" data-tab="insights">Revenue Insights</div>
   </div>
 
   <!-- SEARCH TAB -->
   <div class="wrap tabpane" id="pane-search">
+    <div class="panetitle">
+      <h1>See your market the way guests do</h1>
+      <p>Search the way a traveler actually describes a trip — so you know which listings show up, and how yours stacks up. Pick one to price it.</p>
+    </div>
     <div class="searchrow">
       <div class="searchbox">
         <input id="q" placeholder="Describe your trip — e.g. romantic sea-view escape with a pool and nightlife"
                value="romantic sea-view escape with a pool and nightlife"/>
       </div>
-      <label class="toggle">Semantic <input type="checkbox" id="semantic" checked/></label>
+      <label class="toggle" title="Understands what guests mean, not just exact words">Smart understanding <input type="checkbox" id="semantic" checked/></label>
       <button class="btn" id="go">Search</button>
     </div>
     <div class="filters">
@@ -73,20 +80,24 @@
 
   <!-- INSIGHTS TAB -->
   <div class="wrap tabpane hidden" id="pane-insights">
+    <div class="panetitle">
+      <h1>The revenue you could be capturing</h1>
+      <p>How much more you'd earn by pricing for demand instead of a flat rate — for the selected month.</p>
+    </div>
     <div class="panel">
-      <h2>Marketplace revenue upside</h2>
-      <div class="muted">Suggested vs. flat base pricing, for the selected month.</div>
+      <h2>Extra revenue on the table</h2>
+      <div class="muted">Demand-aware price vs. a flat base rate, across every listing.</div>
       <div class="kpi" id="marketKpi" style="margin-top:14px"></div>
     </div>
     <div class="panel">
-      <h2 class="muted">Genie analytics (coming in Phase 9)</h2>
-      <div class="muted">Natural-language questions over gold — revenue by destination, seasonality, most under-priced listings.</div>
+      <h2 class="muted">Ask anything about your market (coming soon)</h2>
+      <div class="muted">Plain-English questions like "which of my listings are most under-priced?" or "revenue by destination last quarter."</div>
     </div>
   </div>
 
   <div class="footer">
-    Live from Lakebase &lt;200ms · reranked by lakebase_vector + lakebase_text (BM25, RRF) ·
-    geo comps via PostGIS · prices from gold features (season · comps · FX · holidays)
+    <div class="footer-biz">Every price reflects real demand, local holidays, currency shifts, and how nearby stays are priced — updated instantly.</div>
+    <div class="footer-tech">Powered by Databricks Lakebase · hybrid search (vector + BM25, RRF) · geo comps (PostGIS) · real-time serving &lt;200ms</div>
   </div>
 
   <script src="app.js"></script>

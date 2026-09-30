@@ -113,13 +113,14 @@ function wfRow(label, val, positive=true) {
   return `<div class="wf"><span>${label}</span><span class="${cls}">${val>0?sign:""}${money(val)}</span></div>`;
 }
 function renderWaterfall(p) {
+  // Ordered big-lever first: peak season, then local competition, then holidays, then currency.
   $("#stWaterfall").innerHTML =
-    `<div class="wf"><span>Base price</span><span>${money(p.base_price)}</span></div>`
-    + wfRow("Season", p.season_uplift)
-    + wfRow("Comps (destination)", p.comp_uplift)
-    + wfRow("FX (cross-border)", p.fx_uplift)
-    + wfRow("Holiday", p.holiday_uplift)
-    + `<div class="wf total"><span>Suggested price</span><span>${money(p.suggested_price)}</span></div>`;
+    `<div class="wf"><span>Your base price</span><span>${money(p.base_price)}</span></div>`
+    + wfRow("Peak-season demand", p.season_uplift)
+    + wfRow("Local competition", p.comp_uplift)
+    + wfRow("Holiday demand", p.holiday_uplift)
+    + wfRow("Currency (international guests)", p.fx_uplift)
+    + `<div class="wf total"><span>Suggested nightly price</span><span>${money(p.suggested_price)}</span></div>`;
 }
 function renderCurve(curve) {
   const max = Math.max(...curve.map(c => c.suggested_price || 0), 1);
