@@ -16,57 +16,57 @@ def hybrid_search(q: str, month: int, *, semantic: bool = True,
     live suggested price for `month`. Structured filters narrow both rankers.
     When semantic=False, returns keyword-only (the demo's "Semantic toggle off").
     """
-    filt, params_filter = [], []
+    # Build filter twice: bare (for CTEs that read FROM properties, no alias) and
+    # p-prefixed (for the outer query where properties is aliased p). Same params both times.
+    conds = []
     if max_price is not None:
-        filt.append("p.base_price <= %s"); params_filter.append(max_price)
+        conds.append(("base_price <= %(max_price)s", "p.base_price <= %(max_price)s"))
     if destination:
-        filt.append("p.destination = %s"); params_filter.append(destination)
-    where_filter = (" AND " + " AND ".join(filt)) if filt else ""
+        conds.append(("destination = %(destination)s", "p.destination = %(destination)s"))
+    filt_bare = (" AND " + " AND ".join(c[0] for c in conds)) if conds else ""
+    filt_p    = (" AND " + " AND ".join(c[1] for c in conds)) if conds else ""
 
     qvec = db.embed(q) if semantic else None
+
+    # Use NAMED placeholders (%(name)s) so parameter order can't get mismatched — the same
+    # name can appear multiple times in the SQL and psycopg binds it correctly everywhere.
+    named = {"q": q, "qvec": qvec, "month": month, "k": RRF_K}
+    if max_price is not None:
+        named["max_price"] = max_price
+    if destination:
+        named["destination"] = destination
 
     if semantic:
         sql = f"""
         WITH vector_ranked AS (
-          SELECT property_id, RANK() OVER (ORDER BY embedding <=> %s::vector) AS rank
+          SELECT property_id, RANK() OVER (ORDER BY embedding <=> %(qvec)s::vector) AS rank
           FROM properties
-          WHERE TRUE {where_filter}
-          ORDER BY embedding <=> %s::vector LIMIT {LIST_LIMIT}
+          WHERE TRUE {filt_bare}
+          ORDER BY embedding <=> %(qvec)s::vector LIMIT {LIST_LIMIT}
         ),
         keyword_ranked AS (
           SELECT property_id,
-                 RANK() OVER (ORDER BY body_tsv <@> to_bm25query(to_tsvector('english', %s), 'idx_prop_bm25')) AS rank
+                 RANK() OVER (ORDER BY body_tsv <@> to_bm25query(to_tsvector('english', %(q)s), 'idx_prop_bm25')) AS rank
           FROM properties
-          WHERE TRUE {where_filter}
-          ORDER BY body_tsv <@> to_bm25query(to_tsvector('english', %s), 'idx_prop_bm25') LIMIT {LIST_LIMIT}
+          WHERE TRUE {filt_bare}
+          ORDER BY body_tsv <@> to_bm25query(to_tsvector('english', %(q)s), 'idx_prop_bm25') LIMIT {LIST_LIMIT}
         )
         SELECT p.property_id, p.title, p.property_type, p.destination, p.country,
                p.base_price, pr.suggested_price, pr.season_uplift, pr.comp_uplift,
                pr.fx_uplift, pr.holiday_uplift, pr.demand_pct,
-               COALESCE(1.0/(%s+v.rank),0) AS vec_rrf,
-               COALESCE(1.0/(%s+k.rank),0) AS kw_rrf,
-               COALESCE(1.0/(%s+v.rank),0)+COALESCE(1.0/(%s+k.rank),0) AS score,
+               COALESCE(1.0/(%(k)s+v.rank),0) AS vec_rrf,
+               COALESCE(1.0/(%(k)s+k.rank),0) AS kw_rrf,
+               COALESCE(1.0/(%(k)s+v.rank),0)+COALESCE(1.0/(%(k)s+k.rank),0) AS score,
                (v.property_id IS NOT NULL) AS in_vector,
                (k.property_id IS NOT NULL) AS in_keyword
         FROM properties p
         LEFT JOIN vector_ranked  v ON v.property_id = p.property_id
         LEFT JOIN keyword_ranked k ON k.property_id = p.property_id
-        LEFT JOIN property_pricing pr ON pr.property_id = p.property_id AND pr.target_month = %s
-        WHERE (v.property_id IS NOT NULL OR k.property_id IS NOT NULL) {where_filter}
+        LEFT JOIN property_pricing pr ON pr.property_id = p.property_id AND pr.target_month = %(month)s
+        WHERE (v.property_id IS NOT NULL OR k.property_id IS NOT NULL) {filt_p}
         ORDER BY score DESC, p.property_id
         LIMIT {limit}
         """
-        # params MUST match placeholder order in the SQL above:
-        #   vector CTE: qvec, qvec, [filter]
-        #   keyword CTE: q, q, [filter]
-        #   SELECT rrf constants: K, K, K, K
-        #   pricing join: month
-        #   outer WHERE: [filter]
-        params = ([qvec, qvec] + params_filter
-                  + [q, q] + params_filter
-                  + [RRF_K, RRF_K, RRF_K, RRF_K]
-                  + [month]
-                  + params_filter)
     else:
         sql = f"""
         SELECT p.property_id, p.title, p.property_type, p.destination, p.country,
@@ -75,14 +75,13 @@ def hybrid_search(q: str, month: int, *, semantic: bool = True,
                0.0 AS vec_rrf, 1.0 AS kw_rrf, 1.0 AS score,
                FALSE AS in_vector, TRUE AS in_keyword
         FROM properties p
-        LEFT JOIN property_pricing pr ON pr.property_id = p.property_id AND pr.target_month = %s
-        WHERE body_tsv @@ websearch_to_tsquery('english', %s) {where_filter}
-        ORDER BY body_tsv <@> to_bm25query(to_tsvector('english', %s), 'idx_prop_bm25')
+        LEFT JOIN property_pricing pr ON pr.property_id = p.property_id AND pr.target_month = %(month)s
+        WHERE body_tsv @@ websearch_to_tsquery('english', %(q)s) {filt_p}
+        ORDER BY body_tsv <@> to_bm25query(to_tsvector('english', %(q)s), 'idx_prop_bm25')
         LIMIT {limit}
         """
-        params = [month, q] + params_filter + [q]
 
-    return db.query(sql, tuple(params))
+    return db.query(sql, named)
 
 
 def pricing_for(property_id: int, month: int) -> dict | None:
