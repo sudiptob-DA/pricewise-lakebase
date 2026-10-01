@@ -13,6 +13,11 @@ LIST_LIMIT = 80     # candidates pulled from each ranker before fusion
 SYNCED_PRICING = 'data_axle.serve_property_pricing_synced'
 MANUAL_PRICING = 'property_pricing'
 
+# App-written tables live in a dedicated schema so Lakebase CDF can capture ONLY our write-backs
+# (app_data) without re-capturing the UC→Postgres synced tables sitting in public (no circular sync).
+APP_SCHEMA = "app_data"
+DECISIONS_TABLE = f"{APP_SCHEMA}.pricing_decisions"
+
 
 @functools.lru_cache(maxsize=1)
 def pricing_table() -> str:
@@ -192,9 +197,11 @@ def save_property(user_id: str, property_id: int) -> None:
 
 
 def _ensure_decisions_table() -> None:
-    """Create the pricing_decisions table on first use (OLTP write target + Lakehouse Sync source)."""
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS pricing_decisions (
+    """Create the app_data schema + pricing_decisions table on first use.
+    Lives in app_data (not public) so Lakebase CDF captures only app write-backs — no circular sync."""
+    db.execute(f"CREATE SCHEMA IF NOT EXISTS {APP_SCHEMA}")
+    db.execute(f"""
+        CREATE TABLE IF NOT EXISTS {DECISIONS_TABLE} (
             decision_id     BIGSERIAL PRIMARY KEY,
             property_id     BIGINT NOT NULL,
             target_month    INT NOT NULL,
@@ -214,8 +221,8 @@ def apply_price(property_id: int, month: int, applied_price: float, action: str,
     _ensure_decisions_table()
     # capture the base + suggested at decision time for an honest audit trail
     ctx = pricing_for(property_id, month) or {}
-    db.execute("""
-        INSERT INTO pricing_decisions
+    db.execute(f"""
+        INSERT INTO {DECISIONS_TABLE}
           (property_id, target_month, host_id, base_price, suggested_price, applied_price, action)
         VALUES (%s,%s,%s,%s,%s,%s,%s)
     """, (property_id, month, host_id,
@@ -226,9 +233,9 @@ def apply_price(property_id: int, month: int, applied_price: float, action: str,
 
 def latest_decision(property_id: int, month: int) -> dict | None:
     _ensure_decisions_table()
-    rows = db.query("""
+    rows = db.query(f"""
         SELECT applied_price, action, decided_at
-        FROM pricing_decisions
+        FROM {DECISIONS_TABLE}
         WHERE property_id = %s AND target_month = %s
         ORDER BY decided_at DESC LIMIT 1
     """, (property_id, month))

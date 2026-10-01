@@ -85,7 +85,7 @@ display(spark.sql(f"SELECT * FROM {CAT}.{SCH}.v_underpricing ORDER BY uplift_pct
 # COMMAND ----------
 # MAGIC %md
 # MAGIC ## Part B — Lakebase CDF: Lakebase → UC (the write-back loop)
-# MAGIC The app writes host actions — an Accept/Override = a row in Lakebase `pricing_decisions`.
+# MAGIC The app writes host actions — an Accept/Override = a row in Lakebase `app_data.pricing_decisions`.
 # MAGIC **Lakebase Change Data Feed (CDF)** replicates those Postgres changes **back into UC as Delta** —
 # MAGIC no external Spark job. (Note: *Synced Tables* go the other way, UC→Postgres — that was notebook 06.
 # MAGIC This is the reverse: Postgres→UC, which is **Lakebase CDF**.)
@@ -95,17 +95,25 @@ display(spark.sql(f"SELECT * FROM {CAT}.{SCH}.v_underpricing ORDER BY uplift_pct
 # MAGIC - Each row carries system columns: `_pg_change_type` (insert/update/delete), LSN, transaction id,
 # MAGIC   and timestamp — SCD2-style history. (We order by `_pg_lsn` for the latest-value view.)
 # MAGIC
+# MAGIC ### ⚠️ Why a dedicated `app_data` schema (avoid a circular sync)
+# MAGIC CDF is configured **per schema**. Our `public` schema holds **synced-from-UC** tables (e.g.
+# MAGIC `serve_property_pricing_synced`, the Reverse ETL output from notebook 06). If we ran CDF on
+# MAGIC `public`, it would capture those *back* into UC — a pointless round trip (UC → Postgres → UC).
+# MAGIC So the app writes its own tables into a separate **`app_data`** schema, and we run CDF on
+# MAGIC **`app_data` only**. Clean separation: `public` = data flowing IN, `app_data` = data flowing OUT.
+# MAGIC (The app's `_ensure_decisions_table()` already creates `app_data.pricing_decisions`.)
+# MAGIC
 # MAGIC ### Set up (one time)
 # MAGIC **Step 1 — set replica identity** (so Postgres logs full rows to the WAL). In the **Lakebase SQL
 # MAGIC Editor** (connected to `databricks_postgres`):
 # MAGIC ```sql
-# MAGIC ALTER TABLE pricing_decisions REPLICA IDENTITY FULL;
+# MAGIC ALTER TABLE app_data.pricing_decisions REPLICA IDENTITY FULL;
 # MAGIC ```
 # MAGIC **Step 2 — start the CDF feed** from the Lakebase project UI:
 # MAGIC 1. Open the **`pricewise-db`** project.
 # MAGIC 2. Click the **branch name** in the top breadcrumb → **Branch overview**.
 # MAGIC 3. Open the **Lakebase CDF** tab → **Start**.
-# MAGIC 4. Source schema **`public`** → destination catalog **`hackathon`**, destination schema **`data_axle`**.
+# MAGIC 4. Source schema **`app_data`** → destination catalog **`hackathon`**, destination schema **`data_axle`**.
 # MAGIC
 # MAGIC The initial snapshot begins immediately. CDF creates a Delta table named with an `lb_` prefix and
 # MAGIC `_history` suffix → **`hackathon.data_axle.lb_pricing_decisions_history`**.
@@ -152,10 +160,11 @@ try:
     print("✅ Lakebase CDF verified; v_decisions_current created (acceptance analytics).")
 except Exception as e:
     print("CDF history table not found yet. To create it:")
-    print("  1) Lakebase SQL Editor: ALTER TABLE pricing_decisions REPLICA IDENTITY FULL;")
+    print("  0) Click Accept/Override in the app once (creates app_data.pricing_decisions).")
+    print("  1) Lakebase SQL Editor: ALTER TABLE app_data.pricing_decisions REPLICA IDENTITY FULL;")
     print("  2) pricewise-db project → branch name (breadcrumb) → Branch overview → Lakebase CDF → Start")
-    print("     source schema 'public' → dest catalog 'hackathon', schema 'data_axle'.")
-    print("  3) Click Accept/Override in the app, wait ~15s, re-run this cell.")
+    print("     source schema 'app_data' → dest catalog 'hackathon', schema 'data_axle'.")
+    print("  3) Wait ~15s, re-run this cell.")
     print("Detail:", str(e)[:160])
 
 # COMMAND ----------
