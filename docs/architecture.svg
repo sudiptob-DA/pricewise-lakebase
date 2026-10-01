@@ -1,23 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>PriceWise — Architecture</title>
-<style>
-  body{margin:0;background:#F7F5F1;font-family:'Segoe UI',Helvetica,Arial,sans-serif}
-  .wrap{max-width:1240px;margin:0 auto;padding:16px}
-  svg{width:100%;height:auto;display:block}
-  /* animate the flow paths (marching ants). Static SVG file stays un-animated for GitHub. */
-  .flow{stroke-dasharray:9 7;animation:march 1.1s linear infinite}
-  .flow.fast{animation-duration:.7s}
-  @keyframes march{to{stroke-dashoffset:-32}}
-  @media (prefers-reduced-motion: reduce){.flow{animation:none}}
-</style>
-</head>
-<body>
-<div class="wrap">
-<svg viewBox="0 0 1200 740" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 740" font-family="Segoe UI, Helvetica, Arial, sans-serif">
   <defs>
     <marker id="ag" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#00A972"/></marker>
     <marker id="al" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#FF3621"/></marker>
@@ -29,6 +10,7 @@
   <text x="32" y="42" font-size="24" font-weight="700" fill="#1B3139">PriceWise — architecture</text>
   <text x="32" y="66" font-size="13" fill="#8A96A3">Demand-aware pricing &amp; smart search on Databricks Lakebase · Track 2</text>
 
+  <!-- legend -->
   <g font-size="12" fill="#3A4A52">
     <rect x="32" y="84" width="20" height="9" rx="4" fill="#00A972"/><text x="58" y="93">Reverse ETL / Synced Tables (UC → Lakebase)</text>
     <rect x="330" y="84" width="20" height="9" rx="4" fill="#FF3621"/><text x="356" y="93">Real-time serving &amp; app writes (&lt;200ms)</text>
@@ -36,11 +18,13 @@
     <rect x="900" y="84" width="20" height="9" rx="4" fill="#FFAB00"/><text x="926" y="93">User traffic</text>
   </g>
 
+  <!-- band labels -->
   <text x="32" y="140" font-size="12" font-weight="700" fill="#8A96A3">SOURCES</text>
   <text x="32" y="250" font-size="12" font-weight="700" fill="#8A96A3">LAKEHOUSE · Unity Catalog · Lakeflow</text>
   <text x="32" y="430" font-size="12" font-weight="700" fill="#8A96A3">LAKEBASE · serverless Postgres</text>
   <text x="32" y="620" font-size="12" font-weight="700" fill="#8A96A3">APP · Databricks App (FastAPI + static UI)</text>
 
+  <!-- SOURCES -->
   <g>
     <rect x="40" y="150" width="190" height="66" rx="12" fill="#F0EDE6" stroke="#E4E0D8"/>
     <text x="56" y="178" font-size="13" font-weight="700" fill="#1B3139">samples.wanderbricks</text>
@@ -56,6 +40,7 @@
     <text x="428" y="210" font-size="10.5" fill="#8A96A3">holiday demand</text>
   </g>
 
+  <!-- LAKEHOUSE -->
   <g>
     <rect x="40" y="268" width="200" height="130" rx="12" fill="#FFF" stroke="#E4E0D8"/>
     <text x="56" y="294" font-size="13" font-weight="700" fill="#1B3139">Bronze → Silver → Gold</text>
@@ -87,7 +72,9 @@
     <text x="644" y="372" font-size="10.5" fill="#8A96A3">host decisions → analytics</text>
   </g>
 
+  <!-- LAKEBASE (two schemas) -->
   <g>
+    <!-- public schema -->
     <rect x="40" y="448" width="360" height="140" rx="12" fill="#1B3139"/>
     <text x="56" y="472" font-size="12" font-weight="700" fill="#FFAB00">schema: public  (data flowing IN — no CDF)</text>
     <text x="56" y="498" font-size="12.5" font-weight="700" fill="#fff">properties</text>
@@ -96,6 +83,7 @@
     <text x="56" y="556" font-size="12.5" font-weight="700" fill="#fff">serve_property_pricing_synced</text>
     <text x="56" y="573" font-size="10.5" fill="#B9C4CA">prices served &lt;200ms · synced from gold</text>
 
+    <!-- app_data schema -->
     <rect x="416" y="448" width="300" height="140" rx="12" fill="#1B3139"/>
     <text x="432" y="472" font-size="12" font-weight="700" fill="#00A972">schema: app_data  (data flowing OUT — CDF on)</text>
     <text x="432" y="498" font-size="12.5" font-weight="700" fill="#fff">pricing_decisions</text>
@@ -105,6 +93,7 @@
     <text x="432" y="573" font-size="10.5" fill="#B9C4CA">(no circular sync with public)</text>
   </g>
 
+  <!-- APP -->
   <g>
     <rect x="40" y="636" width="440" height="86" rx="12" fill="#FFF1EE" stroke="#FF3621"/>
     <text x="56" y="662" font-size="13" font-weight="700" fill="#1B3139">FastAPI + static UI</text>
@@ -119,31 +108,38 @@
     <text x="516" y="714" font-size="10.5" fill="#8A96A3">capture peak demand</text>
   </g>
 
-  <!-- FLOWS (animated) -->
-  <path class="flow" d="M135,216 L135,268" fill="none" stroke="#00A972" stroke-width="2.2" marker-end="url(#ag)"/>
-  <path class="flow" d="M321,216 C321,245 180,245 150,266" fill="none" stroke="#00A972" stroke-width="2.2" marker-end="url(#ag)"/>
-  <path class="flow" d="M492,216 C492,248 200,248 160,266" fill="none" stroke="#00A972" stroke-width="2.2" marker-end="url(#ag)"/>
-  <path class="flow" d="M240,320 L256,320" fill="none" stroke="#00A972" stroke-width="2.2" marker-end="url(#ag)"/>
-  <path class="flow" d="M426,330 L442,330" fill="none" stroke="#00A972" stroke-width="2.2" marker-end="url(#ag)"/>
+  <!-- FLOWS -->
+  <!-- sources -> gold -->
+  <path d="M135,216 L135,268" fill="none" stroke="#00A972" stroke-width="2.2" marker-end="url(#ag)"/>
+  <path d="M321,216 C321,245 180,245 150,266" fill="none" stroke="#00A972" stroke-width="2.2" marker-end="url(#ag)"/>
+  <path d="M492,216 C492,248 200,248 160,266" fill="none" stroke="#00A972" stroke-width="2.2" marker-end="url(#ag)"/>
+  <!-- gold -> model serving, gold -> genie -->
+  <path d="M240,320 L256,320" fill="none" stroke="#00A972" stroke-width="2.2" marker-end="url(#ag)"/>
+  <path d="M426,330 L442,330" fill="none" stroke="#00A972" stroke-width="2.2" marker-end="url(#ag)"/>
 
-  <path class="flow" d="M150,398 L150,448" fill="none" stroke="#00A972" stroke-width="2.6" marker-end="url(#ag)"/>
-  <path class="flow" d="M330,398 C330,425 250,428 230,446" fill="none" stroke="#00A972" stroke-width="2.6" marker-end="url(#ag)"/>
+  <!-- Reverse ETL: gold/model -> public schema -->
+  <path d="M150,398 L150,448" fill="none" stroke="#00A972" stroke-width="2.6" marker-end="url(#ag)"/>
+  <path d="M330,398 C330,425 250,428 230,446" fill="none" stroke="#00A972" stroke-width="2.6" marker-end="url(#ag)"/>
   <text x="156" y="426" font-size="10.5" font-weight="700" fill="#00A972">Reverse ETL · Synced Tables</text>
 
-  <path class="flow fast" d="M200,588 L200,636" fill="none" stroke="#FF3621" stroke-width="2.6" marker-end="url(#al)"/>
+  <!-- serving: public -> app (fast reads) -->
+  <path d="M200,588 L200,636" fill="none" stroke="#FF3621" stroke-width="2.6" marker-end="url(#al)"/>
   <text x="206" y="616" font-size="10.5" font-weight="700" fill="#FF3621">&lt;200ms reads</text>
-  <path class="flow fast" d="M420,636 C470,610 540,600 560,588" fill="none" stroke="#FF3621" stroke-width="2.6" marker-end="url(#al)"/>
+  <!-- app writes -> app_data -->
+  <path d="M420,636 C470,610 540,600 560,588" fill="none" stroke="#FF3621" stroke-width="2.6" marker-end="url(#al)"/>
   <text x="470" y="615" font-size="10.5" font-weight="700" fill="#FF3621">Accept/Override writes</text>
 
-  <path class="flow" d="M620,448 C690,410 700,410 710,398" fill="none" stroke="#2272B4" stroke-width="2.6" marker-end="url(#ab)"/>
+  <!-- CDF: app_data -> UC Delta history -->
+  <path d="M620,448 C690,410 700,410 710,398" fill="none" stroke="#2272B4" stroke-width="2.6" marker-end="url(#ab)"/>
   <text x="628" y="430" font-size="10.5" font-weight="700" fill="#2272B4">Lakebase CDF (SCD2)</text>
-  <path class="flow" d="M628,340 L612,340" fill="none" stroke="#2272B4" stroke-width="2.2" marker-end="url(#ab)"/>
+  <!-- CDF history -> genie -->
+  <path d="M628,340 L612,340" fill="none" stroke="#2272B4" stroke-width="2.2" marker-end="url(#ab)"/>
 
-  <path class="flow" d="M470,398 C470,520 460,560 300,634" fill="none" stroke="#00A972" stroke-width="1.8" opacity="0.5" marker-end="url(#ag)"/>
-  <path class="flow fast" d="M500,679 L480,679" fill="none" stroke="#FFAB00" stroke-width="2.6" marker-end="url(#ao)"/>
+  <!-- genie -> app (analytics) -->
+  <path d="M470,398 C470,520 460,560 300,634" fill="none" stroke="#00A972" stroke-width="1.8" opacity="0.5" marker-end="url(#ag)"/>
+
+  <!-- user traffic -->
+  <path d="M500,679 L480,679" fill="none" stroke="#FFAB00" stroke-width="2.6" marker-end="url(#ao)"/>
 
   <text x="32" y="736" font-size="10.5" fill="#8A96A3">Lakebase Search (hybrid) · Reverse ETL (powers live prices) · Lakebase CDF (write-back) · Genie · Model Serving · Databricks Apps</text>
 </svg>
-</div>
-</body>
-</html>

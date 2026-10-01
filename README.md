@@ -8,7 +8,9 @@ Track 2 (Data & ML Engineers) — DNB Lakebase Hackathon, Sept 2026.
 > price from Lakebase and letting guests search stays in plain language.
 
 See [`PROJECT_BRIEF.md`](./PROJECT_BRIEF.md) for the full concept, rubric fit, and demo script.
-See [`docs/architecture.html`](./docs/architecture.html) for the animated pipeline diagram.
+![PriceWise architecture](./docs/architecture.svg)
+
+See [`docs/architecture.html`](./docs/architecture.html) for the animated version.
 
 ## Pillars (Track 2)
 - **Lakebase Search** — hybrid `lakebase_vector` + `lakebase_text` (BM25) + structured filters via RRF, one ACID query.
