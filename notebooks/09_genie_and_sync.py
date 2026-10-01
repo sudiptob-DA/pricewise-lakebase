@@ -108,6 +108,40 @@ display(spark.sql(f"SELECT * FROM {CAT}.{SCH}.v_underpricing ORDER BY uplift_pct
 # MAGIC `app/server/queries.py`, which runs `CREATE SCHEMA IF NOT EXISTS app_data` +
 # MAGIC `CREATE TABLE IF NOT EXISTS app_data.pricing_decisions (...)`. No separate migration; the schema
 # MAGIC is self-provisioning. So before CDF has anything to capture, click Accept/Override once in the app.
+
+# COMMAND ----------
+# MAGIC %md
+# MAGIC ### Cleanup: drop the stale `public.pricing_decisions`
+# MAGIC Early builds created `pricing_decisions` in `public` before we moved it to `app_data`. That stale
+# MAGIC table must go — otherwise it clutters `public` (which should hold only synced-from-UC tables) and
+# MAGIC could be captured if CDF were ever pointed at `public`. The cell below drops it after confirming
+# MAGIC the live data is in `app_data`. (Connects to Lakebase like notebook 04/05.)
+
+# COMMAND ----------
+# MAGIC %pip install --quiet "databricks-sdk>=0.89.0" "psycopg[binary]>=3.1.0"
+# MAGIC dbutils.library.restartPython()
+
+# COMMAND ----------
+import psycopg
+from databricks.sdk import WorkspaceClient
+_w = WorkspaceClient()
+_br = next(iter(_w.postgres.list_branches(parent="projects/pricewise-db")))
+_ep = next(iter(_w.postgres.list_endpoints(parent=_br.name)))
+_host, _user = _ep.status.hosts.host, _w.current_user.me().user_name
+def _conn():
+    tok = _w.postgres.generate_database_credential(endpoint=_ep.name).token
+    return psycopg.connect(host=_host, dbname="databricks_postgres", user=_user, port="5432",
+                           password=tok, sslmode="require", autocommit=True)
+with _conn() as c, c.cursor() as cur:
+    def cnt(t):
+        try: cur.execute(f"SELECT count(*) FROM {t}"); return cur.fetchone()[0]
+        except Exception as e: return f"(absent: {str(e)[:40]})"
+    print("app_data.pricing_decisions:", cnt("app_data.pricing_decisions"))
+    print("public.pricing_decisions  :", cnt("public.pricing_decisions"))
+    # Drop the stale public copy (safe: live data is in app_data).
+    cur.execute("DROP TABLE IF EXISTS public.pricing_decisions")
+    print("✅ dropped public.pricing_decisions (if it existed)")
+    print("public.pricing_decisions now:", cnt("public.pricing_decisions"))
 # MAGIC
 # MAGIC ### Set up (one time)
 # MAGIC **Step 1 (OPTIONAL) — replica identity.** This is a *Postgres table-level* setting (WAL verbosity),

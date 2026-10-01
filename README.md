@@ -25,6 +25,8 @@ CDF is configured per-schema, so we separate the two data-flow directions to avo
 
 `app_data.pricing_decisions` is created lazily by the app on first Accept/Override — see `_ensure_decisions_table()` in `app/server/queries.py` (`CREATE SCHEMA IF NOT EXISTS app_data` + `CREATE TABLE ...`). No separate migration.
 
+> One-time cleanup: early builds created `pricing_decisions` in `public`. Drop that stale copy with `DROP TABLE IF EXISTS public.pricing_decisions;` (notebook 09 does this and verifies the live data is in `app_data`).
+
 ## Data sources
 - `samples.wanderbricks` — 18,163 properties, reviews, bookings, clickstream, destinations, amenities.
 - FX rates — `frankfurter.dev` (ECB, no-auth) — cross-border demand signal.
