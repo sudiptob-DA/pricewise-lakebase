@@ -10,6 +10,32 @@ async function api(path) {
   return r.json();
 }
 
+// Deterministic photo keyed by destination + type (Unsplash Source). If it fails to load,
+// the CSS gradient underneath shows — so a card is never "broken" during a demo.
+function imageFor(r) {
+  const kw = encodeURIComponent(`${r.destination||"travel"},${(r.property_type||"stay").split(" ")[0]}`);
+  // stable per-property so the same card always gets the same image
+  return `https://picsum.photos/seed/pw${r.property_id}/400/220`;
+}
+// Warm gradient fallback, varied by id so cards aren't identical.
+const GRADS = [
+  "linear-gradient(135deg,#FF5F46,#FFAB00)","linear-gradient(135deg,#2272B4,#00A972)",
+  "linear-gradient(135deg,#98102A,#FF3621)","linear-gradient(135deg,#00A972,#2272B4)",
+  "linear-gradient(135deg,#FFAB00,#FF5F46)","linear-gradient(135deg,#1B3139,#2272B4)"
+];
+function gradientFor(r) { return GRADS[(r.property_id || 0) % GRADS.length]; }
+
+function skeletonCards(n=8) {
+  return Array.from({length:n}).map(()=>`
+    <div class="card skel">
+      <div class="cardimg sk"></div>
+      <div class="cardbody">
+        <div class="sk-line w70"></div><div class="sk-line w40"></div>
+        <div class="sk-pill"></div><div class="sk-line w50"></div>
+      </div>
+    </div>`).join("");
+}
+
 /* ---------- tabs ---------- */
 document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
   document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
@@ -30,8 +56,8 @@ async function runSearch() {
   if ($("#maxprice").value) params.set("max_price", $("#maxprice").value);
   if ($("#dest").value) params.set("destination", $("#dest").value);
 
-  $("#searchStatus").textContent = "Searching Lakebase…";
-  $("#results").innerHTML = "";
+  $("#searchStatus").innerHTML = `<div class="statusline">Searching Lakebase…</div>`;
+  $("#results").innerHTML = skeletonCards(8);
   try {
     const data = await api("/api/search?" + params.toString());
     const legend = data.semantic ? `
@@ -68,14 +94,21 @@ function renderResults(rows) {
     const el = document.createElement("div");
     el.className = "card" + (r.in_vector && !r.in_keyword ? " semantic" : "");
     el.innerHTML = `
-      <div class="title">${r.display_name || r.title || "Untitled"}</div>
-      <div class="sub">${r.title || ""} · ${r.destination || ""} <span class="pid">#${r.property_id}</span></div>
-      <div class="pricepill">
-        <b>${money(r.suggested_price)}</b><span>/night</span>
-        ${uplift != null ? `<span class="up">${uplift>=0?"+":""}${uplift}%</span>` : ""}
+      <div class="cardimg" style="background:${gradientFor(r)}">
+        <img src="${imageFor(r)}" alt="" loading="lazy" onload="this.classList.add('loaded')" onerror="this.remove()"/>
+        <span class="typebadge">${r.property_type || ""}</span>
+        ${r.in_vector && !r.in_keyword ? '<span class="cornertag">✦ AI found this</span>' : ''}
       </div>
-      ${tagFor(r)}
-      <div class="why">base ${money(r.base_price)}${drivers.length? " · ↑ "+drivers.join(", ") : ""}</div>
+      <div class="cardbody">
+        <div class="title">${r.display_name || r.title || "Untitled"}</div>
+        <div class="sub">${r.title || ""} · ${r.destination || ""} <span class="pid">#${r.property_id}</span></div>
+        <div class="pricepill">
+          <b>${money(r.suggested_price)}</b><span>/night</span>
+          ${uplift != null ? `<span class="up">${uplift>=0?"+":""}${uplift}%</span>` : ""}
+        </div>
+        ${tagFor(r)}
+        <div class="why">base ${money(r.base_price)}${drivers.length? " · ↑ "+drivers.join(", ") : ""}</div>
+      </div>
     `;
     el.onclick = () => openStudio(r.property_id);
     grid.appendChild(el);
@@ -139,7 +172,10 @@ function renderDescription(d) {
   text = text.split(/\.\s*Located in/i)[0];              // cut the location/amenity tail
   if (d.title && text.startsWith(d.title)) text = text.slice(d.title.length).replace(/^[.\s]+/, "");
   const amen = d.amenities ? `<div class="amen">${d.amenities.split(",").map(a=>`<span class="pill2">${a.trim()}</span>`).join("")}</div>` : "";
-  el.innerHTML = `<div class="desc">${text.trim()}</div>${amen}`;
+  const hero = `<div class="studiohero" style="background:${gradientFor(d)}">
+      <img src="${imageFor(d)}" alt="" onload="this.classList.add('loaded')" onerror="this.remove()"/>
+    </div>`;
+  el.innerHTML = `${hero}<div class="desc">${text.trim()}</div>${amen}`;
 }
 
 // Estimated extra revenue per month vs. holding the flat base price.
