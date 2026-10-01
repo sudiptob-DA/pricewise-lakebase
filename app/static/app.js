@@ -267,6 +267,7 @@ async function loadSampleStudio() {
 }
 
 /* ---------- insights ---------- */
+let genieLoaded = false;
 async function loadMarket() {
   try {
     const m = await api("/api/market?month=" + getMonth());
@@ -277,6 +278,32 @@ async function loadMarket() {
   } catch (e) {
     $("#marketKpi").innerHTML = `<div class="err">${e.message}</div>`;
   }
+  if (!genieLoaded) { genieLoaded = true; initGenie(); }
+}
+
+async function initGenie() {
+  let url = "";
+  try { url = (await api("/api/config")).genie_space_url || ""; } catch (e) {}
+  const openA = $("#genieOpen"), openB = $("#genieOpen2");
+  if (url) { openA.href = url; openB.href = url; }
+
+  if (!url) {
+    // No space configured yet — show the fallback with guidance.
+    $("#genieHint").style.display = "none";
+    $("#genieFallback").style.display = "block";
+    $("#genieFallback").querySelector("p").textContent =
+      "Set GENIE_SPACE_URL in the app environment to embed your Genie space here.";
+    return;
+  }
+
+  // Try to embed. If the workspace blocks framing, onload won't fire cleanly / content is blank —
+  // we show the iframe but keep the 'Open in Genie' button visible as the reliable path.
+  const frame = $("#genieFrame");
+  frame.src = url;
+  frame.style.display = "block";
+  $("#genieHint").style.display = "none";
+  // Safety: if the frame errors, reveal the fallback.
+  frame.onerror = () => { frame.style.display = "none"; $("#genieFallback").style.display = "block"; };
 }
 
 /* ---------- init ---------- */

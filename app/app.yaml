@@ -15,3 +15,7 @@ env:
     value: "databricks_postgres"
   - name: EMBEDDING_ENDPOINT
     value: "databricks-gte-large-en"
+  # Full URL to your Genie space, e.g. https://<workspace>/genie/rooms/<space_id>
+  # Set this after you create the space; the Revenue Insights tab embeds it.
+  - name: GENIE_SPACE_URL
+    value: ""

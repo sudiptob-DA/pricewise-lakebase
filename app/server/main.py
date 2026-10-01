@@ -31,6 +31,13 @@ def health():
     return {"status": "ok", "pricing_source": queries.pricing_source()}
 
 
+@app.get("/api/config")
+def config():
+    """Front-end config. Set GENIE_SPACE_URL (full https URL to the Genie space) in the env;
+    the Insights tab embeds it and uses it for the 'Open in Genie' button."""
+    return {"genie_space_url": os.environ.get("GENIE_SPACE_URL", "")}
+
+
 @app.get("/api/destinations")
 def get_destinations():
     return queries.destinations()

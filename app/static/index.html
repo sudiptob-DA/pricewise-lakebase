@@ -101,8 +101,19 @@
       <div class="kpi" id="marketKpi" style="margin-top:14px"></div>
     </div>
     <div class="panel">
-      <h2 class="muted">Ask anything about your market (coming soon)</h2>
-      <div class="muted">Plain-English questions like "which of my listings are most under-priced?" or "revenue by destination last quarter."</div>
+      <div class="genie-head">
+        <h2>Ask anything about your market</h2>
+        <a id="genieOpen" class="btn ghost" href="#" target="_blank" rel="noopener">Open in Genie ↗</a>
+      </div>
+      <div class="muted" style="margin-bottom:10px">Plain-English questions like "which of my listings are most under-priced?" or "what's our price-acceptance rate?" — powered by Databricks Genie over the gold tables.</div>
+      <div id="genieWrap">
+        <div id="genieHint" class="muted">Connecting to your Genie space…</div>
+        <iframe id="genieFrame" title="PriceWise Analytics (Genie)" style="display:none"></iframe>
+        <div id="genieFallback" class="genie-fallback" style="display:none">
+          <p>The Genie space can't be embedded here (your workspace blocks embedding, or no space is configured yet).</p>
+          <a id="genieOpen2" class="btn" href="#" target="_blank" rel="noopener">Open PriceWise Analytics in Genie ↗</a>
+        </div>
+      </div>
     </div>
   </div>
 

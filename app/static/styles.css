@@ -127,3 +127,11 @@ a{color:var(--blue);text-decoration:none}
 .studiohero{height:160px;border-radius:10px;overflow:hidden;margin-bottom:12px;background-size:cover;background-position:center}
 .studiohero img{width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .4s}
 .studiohero img.loaded{opacity:1}
+
+/* Genie embed (Revenue Insights) */
+.genie-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.genie-head h2{margin:0}
+#genieWrap{margin-top:12px}
+#genieFrame{width:100%;height:600px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.genie-fallback{background:var(--oat);border:1px dashed var(--line);border-radius:12px;padding:20px;text-align:center}
+.genie-fallback p{color:var(--ink);margin:0 0 12px}
