@@ -1,13 +1,14 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # PriceWise · 09 · Genie analytics + Lakehouse Sync (write-back loop)
+# MAGIC # PriceWise · 09 · Genie analytics + Lakebase CDF (write-back loop)
 # MAGIC
 # MAGIC **Two goals, both breadth pillars:**
 # MAGIC 1. **Genie** — a natural-language analytics space over the gold tables, so a host can ask
 # MAGIC    *"which of my listings are most under-priced?"* in plain English (powers the Revenue Insights tab).
-# MAGIC 2. **Lakehouse Sync** — replicate the app's write-back state (`pricing_decisions` — the host's
-# MAGIC    Accept/Override actions) from Lakebase **back into Unity Catalog** as Delta (SCD Type 2),
-# MAGIC    closing the loop: app writes → lakehouse analytics → better features.
+# MAGIC 2. **Lakebase CDF** — replicate the app's write-back state (`pricing_decisions` — the host's
+# MAGIC    Accept/Override actions) from Lakebase Postgres **back into Unity Catalog** as Delta change
+# MAGIC    history, closing the loop: app writes → lakehouse analytics → better features.
+# MAGIC    (This is the reverse of notebook 06's Synced Tables, which went UC → Postgres.)
 # MAGIC
 # MAGIC Prereqs: notebooks 03 (gold) + 05 (Lakebase tables) + at least one Accept/Override in the app
 # MAGIC (creates the `pricing_decisions` table).
@@ -58,7 +59,7 @@ display(spark.sql(f"SELECT * FROM {CAT}.{SCH}.v_underpricing ORDER BY uplift_pct
 # MAGIC    - `hackathon.data_axle.v_market_by_destination` — market/seasonality
 # MAGIC    - `hackathon.data_axle.gold_property_features` — the full feature set
 # MAGIC    - `hackathon.data_axle.v_decisions_current` — **host Accept/Override decisions** (available
-# MAGIC      after you run Part B's Lakehouse Sync; add it once it exists)
+# MAGIC      after you run Part B's Lakebase CDF; add it once it exists)
 # MAGIC 4. Add the **sample questions** below as starters, then Save.
 # MAGIC
 # MAGIC ### Demo questions to seed
@@ -68,7 +69,7 @@ display(spark.sql(f"SELECT * FROM {CAT}.{SCH}.v_underpricing ORDER BY uplift_pct
 # MAGIC - "Which destinations have the biggest summer demand spike?"
 # MAGIC - "Show revenue upside for Phuket by month."
 # MAGIC
-# MAGIC *Host behavior (from `v_decisions_current` — after Lakehouse Sync in Part B):*
+# MAGIC *Host behavior (from `v_decisions_current` — after Lakebase CDF in Part B):*
 # MAGIC - "What's our price-acceptance rate — how often do hosts accept the suggested price?"
 # MAGIC - "When hosts override, how far do they deviate from the suggested price on average?"
 # MAGIC - "Which destinations have the most overrides?"
@@ -83,73 +84,91 @@ display(spark.sql(f"SELECT * FROM {CAT}.{SCH}.v_underpricing ORDER BY uplift_pct
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ## Part B — Lakehouse Sync: Lakebase → UC (the write-back loop)
-# MAGIC The app writes host actions — an Accept/Override = a row in Lakebase `pricing_decisions`. Lakehouse
-# MAGIC Sync (Change Data Feed) replicates that operational state **back into UC as Delta, SCD Type 2** —
-# MAGIC no external Spark job. That makes host pricing behavior available for analytics and feature retraining.
+# MAGIC ## Part B — Lakebase CDF: Lakebase → UC (the write-back loop)
+# MAGIC The app writes host actions — an Accept/Override = a row in Lakebase `pricing_decisions`.
+# MAGIC **Lakebase Change Data Feed (CDF)** replicates those Postgres changes **back into UC as Delta** —
+# MAGIC no external Spark job. (Note: *Synced Tables* go the other way, UC→Postgres — that was notebook 06.
+# MAGIC This is the reverse: Postgres→UC, which is **Lakebase CDF**.)
 # MAGIC
 # MAGIC ### How it works (say this in the demo)
-# MAGIC - Lakebase decodes its logical WAL and writes Delta files directly (wal2delta) — runs inside
-# MAGIC   Lakebase compute, no pipeline.
-# MAGIC - Every change is appended with system columns: `_pg_change_type` (insert/update/delete),
-# MAGIC   `_pg_lsn`, `_pg_xid`, `_timestamp`, `_sort_by`. An UPDATE emits pre- and post-image rows.
-# MAGIC - Current state = a "latest-value" view (window on `_sort_by`).
+# MAGIC - CDF is configured **per schema** (every table in `public` is captured), flushing ~every 15s.
+# MAGIC - Each row carries system columns: `_pg_change_type` (insert/update/delete), LSN, transaction id,
+# MAGIC   and timestamp — SCD2-style history. (We order by `_pg_lsn` for the latest-value view.)
 # MAGIC
-# MAGIC ### Set up (UI — one time)
-# MAGIC For Autoscaling `postgres` projects, configure Lakehouse Sync from the Lakebase project:
-# MAGIC **Lakebase project → the branch/table → enable Sync to Unity Catalog** (creates a governed Delta
-# MAGIC table in `hackathon.data_axle`).
+# MAGIC ### Set up (one time)
+# MAGIC **Step 1 — set replica identity** (so Postgres logs full rows to the WAL). In the **Lakebase SQL
+# MAGIC Editor** (connected to `databricks_postgres`):
+# MAGIC ```sql
+# MAGIC ALTER TABLE pricing_decisions REPLICA IDENTITY FULL;
+# MAGIC ```
+# MAGIC **Step 2 — start the CDF feed** from the Lakebase project UI:
+# MAGIC 1. Open the **`pricewise-db`** project.
+# MAGIC 2. Click the **branch name** in the top breadcrumb → **Branch overview**.
+# MAGIC 3. Open the **Lakebase CDF** tab → **Start**.
+# MAGIC 4. Source schema **`public`** → destination catalog **`hackathon`**, destination schema **`data_axle`**.
 # MAGIC
-# MAGIC **Best table to sync: `pricing_decisions`** — the host's Accept/Override actions from the app
-# MAGIC (property_id, month, base/suggested/applied price, action, timestamp). It's the richest write-back:
-# MAGIC it shows *what the host actually did* with our recommendation, which is gold for analytics
-# MAGIC ("acceptance rate", "how far overrides deviate from suggested"). Also sync `saved_properties` if
-# MAGIC you like. Target names e.g. `hackathon.data_axle.pricing_decisions_cdf`.
+# MAGIC The initial snapshot begins immediately. CDF creates a Delta table named with an `lb_` prefix and
+# MAGIC `_history` suffix → **`hackathon.data_axle.lb_pricing_decisions_history`**.
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ## Verify the write-back (after enabling sync + an Accept/Override in the app)
+# MAGIC ## Verify the write-back (after Step 1+2 and an Accept/Override in the app)
 # MAGIC 1. In the app's Pricing Studio, click **Accept suggested price** or **Apply** an override
 # MAGIC    (writes a row to Lakebase `pricing_decisions`).
-# MAGIC 2. Wait for the sync interval, then query the synced Delta table in UC below.
+# MAGIC 2. Wait ~15s for the CDF flush, then query the history table in UC below.
 
 # COMMAND ----------
-SYNCED_CDF = f"{CAT}.{SCH}.pricing_decisions_cdf"   # name you chose when enabling Lakehouse Sync
+# CDF names the table lb_<table>_history. Change here only if your CDF used a different name.
+SYNCED_CDF = f"{CAT}.{SCH}.lb_pricing_decisions_history"
 try:
-    display(spark.sql(f"""
-      SELECT * FROM {SYNCED_CDF} ORDER BY _sort_by DESC LIMIT 20
-    """))
-    # latest-value view (current decision per listing/month), collapsing SCD2 history
+    # 1) See the raw change feed. CDF rows carry _pg_change_type + an LSN column (_pg_lsn).
+    display(spark.sql(f"SELECT * FROM {SYNCED_CDF} LIMIT 20"))
+
+    # 2) Discover the ordering column robustly (CDF column names can vary slightly across versions:
+    #    _pg_lsn / _lsn / _commit_lsn, plus a timestamp). Pick the best available to order history.
+    cols = [f.name for f in spark.table(SYNCED_CDF).schema.fields]
+    order_col = next((c for c in ["_pg_lsn", "_lsn", "_commit_lsn", "_pg_commit_lsn",
+                                   "_timestamp", "_commit_timestamp"] if c in cols), None)
+    print("CDF columns:", cols)
+    print("ordering by:", order_col)
+    assert order_col, "No LSN/timestamp column found — inspect the columns printed above and set order_col."
+
+    # 3) Latest-value view: newest change per decision_id, drop deletes. (SCD2 history collapsed.)
     spark.sql(f"""
       CREATE OR REPLACE VIEW {CAT}.{SCH}.v_decisions_current AS
       WITH ranked AS (
-        SELECT *, row_number() OVER (PARTITION BY decision_id ORDER BY _sort_by DESC) rn
+        SELECT *, row_number() OVER (PARTITION BY decision_id ORDER BY {order_col} DESC) rn
         FROM {SYNCED_CDF}
       )
       SELECT * FROM ranked WHERE rn = 1 AND _pg_change_type <> 'delete'
     """)
-    # a genuinely useful analytic: how often hosts accept vs override, and override deviation
+
+    # 4) The payoff analytic: acceptance rate + how far overrides deviate from the suggested price.
     display(spark.sql(f"""
-      SELECT action, count(*) n,
-             round(avg(applied_price - suggested_price),2) avg_deviation_from_suggested
+      SELECT action, count(*) AS n,
+             round(avg(applied_price - suggested_price), 2) AS avg_deviation_from_suggested
       FROM {CAT}.{SCH}.v_decisions_current GROUP BY action
     """))
-    print("✅ Lakehouse Sync verified; v_decisions_current created (acceptance analytics).")
+    print("✅ Lakebase CDF verified; v_decisions_current created (acceptance analytics).")
 except Exception as e:
-    print("Synced CDF table not found yet — enable Lakehouse Sync on pricing_decisions in the")
-    print("Lakebase project UI, click Accept/Override in the app, then re-run. Detail:", str(e)[:160])
+    print("CDF history table not found yet. To create it:")
+    print("  1) Lakebase SQL Editor: ALTER TABLE pricing_decisions REPLICA IDENTITY FULL;")
+    print("  2) pricewise-db project → branch name (breadcrumb) → Branch overview → Lakebase CDF → Start")
+    print("     source schema 'public' → dest catalog 'hackathon', schema 'data_axle'.")
+    print("  3) Click Accept/Override in the app, wait ~15s, re-run this cell.")
+    print("Detail:", str(e)[:160])
 
 # COMMAND ----------
 # MAGIC %md
 # MAGIC ## ✅ Checkpoint
 # MAGIC - **Genie space** over gold answers plain-English pricing/market questions, and — after Part B —
 # MAGIC   host-behavior questions ("acceptance rate", "override deviation") from `v_decisions_current`.
-# MAGIC - **Lakehouse Sync** streams app write-backs (`pricing_decisions`) into UC as SCD2 Delta — the loop
+# MAGIC - **Lakebase CDF** streams app write-backs (`pricing_decisions`) into UC as Delta history — the loop
 # MAGIC   is closed: host decisions flow back to the lakehouse for analytics and retraining.
 # MAGIC
 # MAGIC **Pillars demonstrated:** Lakebase Search (05), Reverse ETL / Synced Tables (06, powering the app),
-# MAGIC Lakehouse Sync (09), plus Genie, Model Serving (embeddings), and the App. (Real-time feature
-# MAGIC serving via Feature Store, notebook 07, is optional/skipped — the app already serves prices
-# MAGIC live from Lakebase.)
+# MAGIC Lakebase CDF — Postgres→lakehouse (09), plus Genie, Model Serving (embeddings), and the App.
+# MAGIC (Real-time feature serving via Feature Store, notebook 07, is optional/skipped — the app already
+# MAGIC serves prices live from Lakebase.)
 # MAGIC
 # MAGIC **Next:** deploy the app via Asset Bundle (Phase 10) and rehearse `DEMO_SCRIPT.md`.
