@@ -10,12 +10,18 @@ async function api(path) {
   return r.json();
 }
 
-// Deterministic photo keyed by destination + type (Unsplash Source). If it fails to load,
-// the CSS gradient underneath shows — so a card is never "broken" during a demo.
+// Curated LOCAL images by property type (3 variants each, rotated by id so cards vary but are
+// always contextually relevant). Bundled in /img — no external CDN, no random photos.
+const TYPE_IMAGES = {
+  "Summer Getaway":   ["summer-1","summer-2","summer-3"],
+  "Urban Year-Round": ["urban-1","urban-2","urban-3"],
+  "Historical Place": ["historical-1","historical-2","historical-3"],
+  "Ski Resort":       ["ski-1","ski-2","ski-3"],
+};
 function imageFor(r) {
-  const kw = encodeURIComponent(`${r.destination||"travel"},${(r.property_type||"stay").split(" ")[0]}`);
-  // stable per-property so the same card always gets the same image
-  return `https://picsum.photos/seed/pw${r.property_id}/400/220`;
+  const set = TYPE_IMAGES[r.property_type] || TYPE_IMAGES["Summer Getaway"];
+  const pick = set[(r.property_id || 0) % set.length];
+  return `img/${pick}.jpg`;
 }
 // Warm gradient fallback, varied by id so cards aren't identical.
 const GRADS = [
