@@ -12,9 +12,16 @@ See [`docs/architecture.html`](./docs/architecture.html) for the animated pipeli
 
 ## Pillars (Track 2)
 - **Lakebase Search** — hybrid `lakebase_vector` + `lakebase_text` (BM25) + structured filters via RRF, one ACID query.
-- **Real-time feature serving** — suggested price served by `property_id` in <200ms from the Lakebase online store.
-- **Reverse ETL / Synced Tables** — gold features + embeddings synced UC → Lakebase.
-- **Lakehouse Sync** — app write-backs (searches, saves) replicated Lakebase → UC for analytics.
+- **Real-time pricing served from Lakebase** — suggested price served by `(property_id, month)` in <200ms directly from Lakebase (the app reads Postgres). Optional managed Feature Serving endpoint in `notebooks/07`.
+- **Reverse ETL / Synced Tables** — gold features synced UC → Lakebase `public` schema (notebook 06; powers the live app prices).
+- **Lakebase CDF** — app write-backs (`pricing_decisions`) replicated Lakebase → UC as Delta change history (notebook 09).
+
+## Lakebase schema layout (why two schemas)
+CDF is configured per-schema, so we separate the two data-flow directions to avoid a circular sync:
+- **`public`** — tables flowing **IN** (UC → Postgres via Synced Tables): `properties`, `serve_property_pricing_synced`. **Not** captured by CDF.
+- **`app_data`** — tables the app **writes** that flow **OUT** (Postgres → UC via CDF): `app_data.pricing_decisions`. CDF runs on `app_data` only.
+
+`app_data.pricing_decisions` is created lazily by the app on first Accept/Override — see `_ensure_decisions_table()` in `app/server/queries.py` (`CREATE SCHEMA IF NOT EXISTS app_data` + `CREATE TABLE ...`). No separate migration.
 
 ## Data sources
 - `samples.wanderbricks` — 18,163 properties, reviews, bookings, clickstream, destinations, amenities.

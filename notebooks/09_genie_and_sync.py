@@ -103,12 +103,23 @@ display(spark.sql(f"SELECT * FROM {CAT}.{SCH}.v_underpricing ORDER BY uplift_pct
 # MAGIC **`app_data` only**. Clean separation: `public` = data flowing IN, `app_data` = data flowing OUT.
 # MAGIC (The app's `_ensure_decisions_table()` already creates `app_data.pricing_decisions`.)
 # MAGIC
+# MAGIC ### Where does `app_data.pricing_decisions` come from?
+# MAGIC The app creates it **lazily on the first Accept/Override** — see `_ensure_decisions_table()` in
+# MAGIC `app/server/queries.py`, which runs `CREATE SCHEMA IF NOT EXISTS app_data` +
+# MAGIC `CREATE TABLE IF NOT EXISTS app_data.pricing_decisions (...)`. No separate migration; the schema
+# MAGIC is self-provisioning. So before CDF has anything to capture, click Accept/Override once in the app.
+# MAGIC
 # MAGIC ### Set up (one time)
-# MAGIC **Step 1 — set replica identity** (so Postgres logs full rows to the WAL). In the **Lakebase SQL
-# MAGIC Editor** (connected to `databricks_postgres`):
-# MAGIC ```sql
-# MAGIC ALTER TABLE app_data.pricing_decisions REPLICA IDENTITY FULL;
-# MAGIC ```
+# MAGIC **Step 1 (OPTIONAL) — replica identity.** This is a *Postgres table-level* setting (WAL verbosity),
+# MAGIC **not** a CDF setting. By default Postgres logs only the primary key on UPDATE/DELETE; `FULL` logs
+# MAGIC the complete before/after row.
+# MAGIC - **For PriceWise you likely DON'T need it:** `pricing_decisions` is append-only (each decision is a
+# MAGIC   new INSERT) and our `v_decisions_current` only keeps the latest row per `decision_id` — we never
+# MAGIC   diff old-vs-new columns. The default identity is sufficient.
+# MAGIC - **Set it only if** you later want full before/after snapshots on updates/deletes:
+# MAGIC   ```sql
+# MAGIC   ALTER TABLE app_data.pricing_decisions REPLICA IDENTITY FULL;   -- optional
+# MAGIC   ```
 # MAGIC **Step 2 — start the CDF feed** from the Lakebase project UI:
 # MAGIC 1. Open the **`pricewise-db`** project.
 # MAGIC 2. Click the **branch name** in the top breadcrumb → **Branch overview**.
@@ -160,11 +171,12 @@ try:
     print("✅ Lakebase CDF verified; v_decisions_current created (acceptance analytics).")
 except Exception as e:
     print("CDF history table not found yet. To create it:")
-    print("  0) Click Accept/Override in the app once (creates app_data.pricing_decisions).")
-    print("  1) Lakebase SQL Editor: ALTER TABLE app_data.pricing_decisions REPLICA IDENTITY FULL;")
+    print("  1) Click Accept/Override in the app once (creates app_data.pricing_decisions).")
     print("  2) pricewise-db project → branch name (breadcrumb) → Branch overview → Lakebase CDF → Start")
     print("     source schema 'app_data' → dest catalog 'hackathon', schema 'data_axle'.")
     print("  3) Wait ~15s, re-run this cell.")
+    print("  (Optional: ALTER TABLE app_data.pricing_decisions REPLICA IDENTITY FULL; — only needed")
+    print("   if you later want full before/after row snapshots on updates/deletes.)")
     print("Detail:", str(e)[:160])
 
 # COMMAND ----------
