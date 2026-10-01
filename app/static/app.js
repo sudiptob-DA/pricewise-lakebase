@@ -284,26 +284,22 @@ async function loadMarket() {
 async function initGenie() {
   let url = "";
   try { url = (await api("/api/config")).genie_space_url || ""; } catch (e) {}
-  const openA = $("#genieOpen"), openB = $("#genieOpen2");
-  if (url) { openA.href = url; openB.href = url; }
-
-  if (!url) {
-    // No space configured yet — show the fallback with guidance.
-    $("#genieHint").style.display = "none";
-    $("#genieFallback").style.display = "block";
-    $("#genieFallback").querySelector("p").textContent =
-      "Set GENIE_SPACE_URL in the app environment to embed your Genie space here.";
-    return;
+  const open = $("#genieOpen");
+  if (url) {
+    open.href = url;
+    $("#genieNote").textContent = "Opens your PriceWise Analytics space in Databricks Genie.";
+  } else {
+    open.href = "#";
+    open.classList.add("ghost");
+    $("#genieNote").textContent = "Set GENIE_SPACE_URL in the app environment to link your Genie space.";
   }
-
-  // Try to embed. If the workspace blocks framing, onload won't fire cleanly / content is blank —
-  // we show the iframe but keep the 'Open in Genie' button visible as the reliable path.
-  const frame = $("#genieFrame");
-  frame.src = url;
-  frame.style.display = "block";
-  $("#genieHint").style.display = "none";
-  // Safety: if the frame errors, reveal the fallback.
-  frame.onerror = () => { frame.style.display = "none"; $("#genieFallback").style.display = "block"; };
+  // Make the sample questions clickable → open Genie (the space's own input is where they're asked).
+  document.querySelectorAll("#genieQ li").forEach(li => {
+    if (!url) return;
+    li.style.cursor = "pointer";
+    li.title = "Open in Genie";
+    li.onclick = () => window.open(url, "_blank", "noopener");
+  });
 }
 
 /* ---------- init ---------- */
