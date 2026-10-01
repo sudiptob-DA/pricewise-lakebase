@@ -15,6 +15,8 @@ env:
     value: "databricks_postgres"
   - name: EMBEDDING_ENDPOINT
     value: "databricks-gte-large-en"
-  # Full URL to your Genie space. The Revenue Insights tab links to it ("Open in Genie").
+  # Genie space: ID powers the in-app chat (Conversation API); URL powers the "Open in Genie" link.
+  - name: GENIE_SPACE_ID
+    value: "01f1bdd0b16c164789517b59f5ede336"
   - name: GENIE_SPACE_URL
     value: "https://dbc-9d25a17d-f58c.cloud.databricks.com/genie/rooms/01f1bdd0b16c164789517b59f5ede336"

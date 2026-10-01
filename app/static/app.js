@@ -281,25 +281,55 @@ async function loadMarket() {
   if (!genieLoaded) { genieLoaded = true; initGenie(); }
 }
 
+let genieConversationId = null;
 async function initGenie() {
-  let url = "";
-  try { url = (await api("/api/config")).genie_space_url || ""; } catch (e) {}
+  let cfg = {};
+  try { cfg = await api("/api/config"); } catch (e) {}
   const open = $("#genieOpen");
-  if (url) {
-    open.href = url;
-    $("#genieNote").textContent = "Opens your PriceWise Analytics space in Databricks Genie.";
-  } else {
-    open.href = "#";
-    open.classList.add("ghost");
-    $("#genieNote").textContent = "Set GENIE_SPACE_URL in the app environment to link your Genie space.";
-  }
-  // Make the sample questions clickable → open Genie (the space's own input is where they're asked).
+  if (cfg.genie_space_url) open.href = cfg.genie_space_url; else { open.href = "#"; }
+  // sample questions -> fill input and ask
   document.querySelectorAll("#genieQ li").forEach(li => {
-    if (!url) return;
     li.style.cursor = "pointer";
-    li.title = "Open in Genie";
-    li.onclick = () => window.open(url, "_blank", "noopener");
+    li.onclick = () => { $("#genieInput").value = li.textContent; askGenie(); };
   });
+  $("#genieAsk").onclick = askGenie;
+  $("#genieInput").addEventListener("keydown", e => { if (e.key === "Enter") askGenie(); });
+}
+
+async function askGenie() {
+  const q = $("#genieInput").value.trim();
+  if (!q) return;
+  const out = $("#genieAnswer");
+  out.innerHTML = `<div class="genie-thinking">Asking Genie… <span class="muted">(reads schema, writes SQL, runs it)</span></div>`;
+  try {
+    const r = await fetch("/api/genie/ask", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ question: q, conversation_id: genieConversationId })
+    });
+    if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || r.statusText);
+    const d = await r.json();
+    genieConversationId = d.conversation_id || genieConversationId;
+    renderGenieAnswer(d);
+  } catch (e) {
+    out.innerHTML = `<div class="err">Genie: ${e.message}. Try "Open in Genie ↗".</div>`;
+  }
+}
+
+function renderGenieAnswer(d) {
+  const out = $("#genieAnswer");
+  if (d.error) { out.innerHTML = `<div class="err">${d.error}</div>`; return; }
+  let html = "";
+  if (d.text) html += `<div class="genie-text">${d.text}</div>`;
+  if (d.follow_up) html += `<div class="genie-followup">↳ ${d.follow_up}</div>`;
+  if (d.columns && d.columns.length && d.rows && d.rows.length) {
+    html += `<div class="genie-tablewrap"><table class="genie-table"><thead><tr>` +
+      d.columns.map(c => `<th>${c}</th>`).join("") + `</tr></thead><tbody>` +
+      d.rows.slice(0, 15).map(row => `<tr>` + row.map(v => `<td>${v == null ? "" : v}</td>`).join("") + `</tr>`).join("") +
+      `</tbody></table></div>`;
+    if (d.row_count > 15) html += `<div class="muted">… ${d.row_count} rows total</div>`;
+  }
+  if (d.sql) html += `<details class="genie-sql"><summary>SQL Genie generated</summary><pre>${d.sql}</pre></details>`;
+  out.innerHTML = html || `<div class="muted">No answer returned.</div>`;
 }
 
 /* ---------- init ---------- */

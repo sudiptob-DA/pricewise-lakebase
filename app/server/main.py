@@ -31,11 +31,41 @@ def health():
     return {"status": "ok", "pricing_source": queries.pricing_source()}
 
 
+def _genie_space_id() -> str:
+    """Space id from GENIE_SPACE_ID, or parsed from GENIE_SPACE_URL (.../genie/rooms/<id>...)."""
+    sid = os.environ.get("GENIE_SPACE_ID", "")
+    if sid:
+        return sid
+    url = os.environ.get("GENIE_SPACE_URL", "")
+    if "/genie/rooms/" in url:
+        return url.split("/genie/rooms/")[1].split("/")[0].split("?")[0]
+    return ""
+
+
 @app.get("/api/config")
 def config():
-    """Front-end config. Set GENIE_SPACE_URL (full https URL to the Genie space) in the env;
-    the Insights tab embeds it and uses it for the 'Open in Genie' button."""
-    return {"genie_space_url": os.environ.get("GENIE_SPACE_URL", "")}
+    """Front-end config: the Genie space URL (for the 'Open in Genie' link) and whether the
+    in-app Genie chat is available (space id resolved)."""
+    return {"genie_space_url": os.environ.get("GENIE_SPACE_URL", ""),
+            "genie_enabled": bool(_genie_space_id())}
+
+
+class GenieAsk(BaseModel):
+    question: str
+    conversation_id: str | None = None
+
+
+@app.post("/api/genie/ask")
+def genie_ask(req: GenieAsk):
+    """Ask the Genie space a question via the Conversation API; returns answer text + any table."""
+    space_id = _genie_space_id()
+    if not space_id:
+        raise HTTPException(status_code=503, detail="Genie not configured (set GENIE_SPACE_ID/URL).")
+    try:
+        from .genie_client import GenieClient
+        return GenieClient(space_id).ask(req.question, req.conversation_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Genie error: {e}")
 
 
 @app.get("/api/destinations")
