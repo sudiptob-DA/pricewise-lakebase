@@ -92,7 +92,9 @@ seasonality insight (the whole business case), and why reviews are unusable for 
 - Lakehouse Sync: `search_events`/`saved_properties` → UC (SCD2) for analytics.
 - 🔎 **Checkpoint:** a save in the app appears in the UC synced table.
 
-## Phase 10 — Deploy + demo ⬜  → `databricks.yml`
+## Phase 10 — Deploy + demo 🔎 (bundle written + validated; deploy when ready)  → `databricks.yml`
+> `databricks bundle validate` passes. Deploy steps + the critical service-principal grants are in
+> [`DEPLOY.md`](./DEPLOY.md). The app also runs locally: `cd app && uvicorn server.main:app --port 8000`.
 **Goal:** ship it and rehearse.
 - Asset Bundle: pipeline + job + app. `databricks bundle deploy`.
 - Rehearse the 3-min demo script from `PROJECT_BRIEF.md`.
