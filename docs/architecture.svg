@@ -1,145 +1,153 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 740" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 980" font-family="Segoe UI, Helvetica, Arial, sans-serif">
   <defs>
-    <marker id="ag" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#00A972"/></marker>
-    <marker id="al" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#FF3621"/></marker>
-    <marker id="ab" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#2272B4"/></marker>
-    <marker id="ao" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#FFAB00"/></marker>
+    <marker id="ag" markerWidth="10" markerHeight="10" refX="6.5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#00A972"/></marker>
+    <marker id="al" markerWidth="10" markerHeight="10" refX="6.5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#FF3621"/></marker>
+    <marker id="ab" markerWidth="10" markerHeight="10" refX="6.5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#2272B4"/></marker>
+    <marker id="ao" markerWidth="10" markerHeight="10" refX="6.5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#FFAB00"/></marker>
+    <marker id="ap" markerWidth="10" markerHeight="10" refX="6.5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#8E6FD8"/></marker>
   </defs>
 
-  <rect width="1200" height="740" fill="#F7F5F1"/>
-  <text x="32" y="42" font-size="24" font-weight="700" fill="#1B3139">PriceWise — architecture</text>
-  <text x="32" y="66" font-size="13" fill="#8A96A3">Demand-aware pricing &amp; smart search on Databricks Lakebase · Track 2</text>
+  <rect width="1440" height="980" fill="#F7F5F1"/>
+  <text x="40" y="48" font-size="26" font-weight="700" fill="#1B3139">PriceWise — architecture</text>
+  <text x="40" y="74" font-size="14" fill="#8A96A3">Demand-aware pricing &amp; smart search on Databricks Lakebase · Track 2</text>
 
-  <!-- legend -->
-  <g font-size="12" fill="#3A4A52">
-    <rect x="32" y="84" width="20" height="9" rx="4" fill="#00A972"/><text x="58" y="93">Reverse ETL / Synced Tables (UC → Lakebase)</text>
-    <rect x="330" y="84" width="20" height="9" rx="4" fill="#FF3621"/><text x="356" y="93">Real-time serving &amp; app writes (&lt;200ms)</text>
-    <rect x="640" y="84" width="20" height="9" rx="4" fill="#2272B4"/><text x="666" y="93">Lakebase CDF (Lakebase → UC)</text>
-    <rect x="900" y="84" width="20" height="9" rx="4" fill="#FFAB00"/><text x="926" y="93">User traffic</text>
+  <!-- legend: one row, each color maps to exactly one kind of arrow -->
+  <g font-size="12.5" fill="#3A4A52">
+    <rect x="40"   y="98" width="22" height="10" rx="5" fill="#00A972"/><text x="70"   y="107">Lakehouse build &amp; ingest</text>
+    <rect x="250"  y="98" width="22" height="10" rx="5" fill="#8E6FD8"/><text x="280"  y="107">Reverse ETL · Synced Tables (UC → Lakebase)</text>
+    <rect x="610"  y="98" width="22" height="10" rx="5" fill="#FF3621"/><text x="640"  y="107">Real-time serving &amp; app writes (&lt;200ms)</text>
+    <rect x="920"  y="98" width="22" height="10" rx="5" fill="#2272B4"/><text x="950"  y="107">Lakebase CDF (Lakebase → UC)</text>
+    <rect x="1180" y="98" width="22" height="10" rx="5" fill="#FFAB00"/><text x="1210" y="107">User traffic</text>
   </g>
 
   <!-- band labels -->
-  <text x="32" y="140" font-size="12" font-weight="700" fill="#8A96A3">SOURCES</text>
-  <text x="32" y="250" font-size="12" font-weight="700" fill="#8A96A3">LAKEHOUSE · Unity Catalog · Lakeflow</text>
-  <text x="32" y="430" font-size="12" font-weight="700" fill="#8A96A3">LAKEBASE · serverless Postgres</text>
-  <text x="32" y="620" font-size="12" font-weight="700" fill="#8A96A3">APP · Databricks App (FastAPI + static UI)</text>
+  <text x="40" y="168" font-size="12.5" font-weight="700" fill="#8A96A3" letter-spacing="0.5">SOURCES</text>
+  <text x="40" y="312" font-size="12.5" font-weight="700" fill="#8A96A3" letter-spacing="0.5">LAKEHOUSE · Unity Catalog · Lakeflow</text>
+  <text x="40" y="574" font-size="12.5" font-weight="700" fill="#8A96A3" letter-spacing="0.5">LAKEBASE · serverless Postgres</text>
+  <text x="40" y="820" font-size="12.5" font-weight="700" fill="#8A96A3" letter-spacing="0.5">APP · Databricks App (FastAPI + static UI)</text>
 
-  <!-- SOURCES -->
+  <!-- =============================== SOURCES =============================== -->
   <g>
-    <rect x="40" y="150" width="190" height="66" rx="12" fill="#F0EDE6" stroke="#E4E0D8"/>
-    <text x="56" y="178" font-size="13" font-weight="700" fill="#1B3139">samples.wanderbricks</text>
-    <text x="56" y="196" font-size="10.5" fill="#8A96A3">18k stays · reviews · bookings</text>
-    <text x="56" y="210" font-size="10.5" fill="#8A96A3">clickstream · destinations</text>
-    <rect x="246" y="150" width="150" height="66" rx="12" fill="#F0EDE6" stroke="#E4E0D8"/>
-    <text x="262" y="178" font-size="13" font-weight="700" fill="#1B3139">FX rates</text>
-    <text x="262" y="196" font-size="10.5" fill="#8A96A3">frankfurter.dev</text>
-    <text x="262" y="210" font-size="10.5" fill="#8A96A3">cross-border demand</text>
-    <rect x="412" y="150" width="160" height="66" rx="12" fill="#F0EDE6" stroke="#E4E0D8"/>
-    <text x="428" y="178" font-size="13" font-weight="700" fill="#1B3139">Public holidays</text>
-    <text x="428" y="196" font-size="10.5" fill="#8A96A3">date.nager.at</text>
-    <text x="428" y="210" font-size="10.5" fill="#8A96A3">holiday demand</text>
+    <rect x="48" y="180" width="220" height="78" rx="12" fill="#F0EDE6" stroke="#E4E0D8"/>
+    <text x="68" y="210" font-size="13.5" font-weight="700" fill="#1B3139">samples.wanderbricks</text>
+    <text x="68" y="230" font-size="11" fill="#8A96A3">18k stays · reviews · bookings</text>
+    <text x="68" y="246" font-size="11" fill="#8A96A3">clickstream · destinations</text>
+
+    <rect x="300" y="180" width="180" height="78" rx="12" fill="#F0EDE6" stroke="#E4E0D8"/>
+    <text x="320" y="210" font-size="13.5" font-weight="700" fill="#1B3139">FX rates</text>
+    <text x="320" y="230" font-size="11" fill="#8A96A3">frankfurter.dev</text>
+    <text x="320" y="246" font-size="11" fill="#8A96A3">cross-border demand</text>
+
+    <rect x="512" y="180" width="190" height="78" rx="12" fill="#F0EDE6" stroke="#E4E0D8"/>
+    <text x="532" y="210" font-size="13.5" font-weight="700" fill="#1B3139">Public holidays</text>
+    <text x="532" y="230" font-size="11" fill="#8A96A3">date.nager.at</text>
+    <text x="532" y="246" font-size="11" fill="#8A96A3">holiday demand</text>
   </g>
 
-  <!-- LAKEHOUSE -->
+  <!-- =============================== LAKEHOUSE ============================= -->
   <g>
-    <rect x="40" y="268" width="200" height="130" rx="12" fill="#FFF" stroke="#E4E0D8"/>
-    <text x="56" y="294" font-size="13" font-weight="700" fill="#1B3139">Bronze → Silver → Gold</text>
-    <text x="56" y="314" font-size="10.5" fill="#8A96A3">Lakeflow pipeline</text>
-    <text x="56" y="330" font-size="10.5" fill="#8A96A3">season · demand · comps</text>
-    <text x="56" y="346" font-size="10.5" fill="#8A96A3">fx_factor · holiday_boost</text>
-    <text x="56" y="362" font-size="10.5" fill="#8A96A3">→ suggested_price (all 12 mo)</text>
-    <text x="56" y="382" font-size="10.5" fill="#8A96A3">gold_property_doc (embed text)</text>
+    <rect x="48" y="328" width="240" height="178" rx="12" fill="#FFF" stroke="#E4E0D8"/>
+    <text x="68" y="356" font-size="13.5" font-weight="700" fill="#1B3139">Bronze → Silver → Gold</text>
+    <text x="68" y="378" font-size="11" fill="#8A96A3">Lakeflow pipeline</text>
+    <text x="68" y="396" font-size="11" fill="#8A96A3">season · demand · comps</text>
+    <text x="68" y="414" font-size="11" fill="#8A96A3">fx_factor · holiday_boost</text>
+    <text x="68" y="432" font-size="11" fill="#8A96A3">→ suggested_price (all 12 mo)</text>
+    <text x="68" y="458" font-size="11" fill="#8A96A3">gold_property_doc (embed text)</text>
+    <text x="68" y="482" font-size="11" fill="#8A96A3">dim_country · views</text>
 
-    <rect x="256" y="268" width="170" height="130" rx="12" fill="#FFF" stroke="#E4E0D8"/>
-    <text x="272" y="294" font-size="13" font-weight="700" fill="#1B3139">Model Serving</text>
-    <text x="272" y="314" font-size="10.5" fill="#8A96A3">embed descriptions</text>
-    <text x="272" y="330" font-size="10.5" fill="#8A96A3">gte-large-en (1024-dim)</text>
-    <text x="272" y="356" font-size="10.5" fill="#8A96A3">(opt) Feature Store</text>
-    <text x="272" y="372" font-size="10.5" fill="#8A96A3">serving endpoint — nb 07</text>
+    <rect x="320" y="328" width="220" height="178" rx="12" fill="#FFF" stroke="#E4E0D8"/>
+    <text x="340" y="356" font-size="13.5" font-weight="700" fill="#1B3139">Model Serving</text>
+    <text x="340" y="378" font-size="11" fill="#8A96A3">embed descriptions</text>
+    <text x="340" y="396" font-size="11" fill="#8A96A3">gte-large-en (1024-dim)</text>
+    <text x="340" y="430" font-size="11" fill="#8A96A3">(opt) Feature Store</text>
+    <text x="340" y="448" font-size="11" fill="#8A96A3">serving endpoint — nb 07</text>
 
-    <rect x="442" y="268" width="170" height="130" rx="12" fill="#EAF1F6" stroke="#cfe0ea"/>
-    <text x="458" y="294" font-size="13" font-weight="700" fill="#1B3139">Genie</text>
-    <text x="458" y="314" font-size="10.5" fill="#8A96A3">text-to-SQL over gold</text>
-    <text x="458" y="330" font-size="10.5" fill="#8A96A3">+ v_decisions_current</text>
-    <text x="458" y="356" font-size="10.5" fill="#8A96A3">acceptance-rate analytics</text>
-    <text x="458" y="372" font-size="10.5" fill="#8A96A3">(Revenue Insights)</text>
+    <rect x="572" y="328" width="220" height="178" rx="12" fill="#EAF1F6" stroke="#cfe0ea"/>
+    <text x="592" y="356" font-size="13.5" font-weight="700" fill="#1B3139">Genie</text>
+    <text x="592" y="378" font-size="11" fill="#8A96A3">text-to-SQL over gold</text>
+    <text x="592" y="396" font-size="11" fill="#8A96A3">+ v_decisions_current</text>
+    <text x="592" y="430" font-size="11" fill="#8A96A3">acceptance-rate analytics</text>
+    <text x="592" y="448" font-size="11" fill="#8A96A3">(Revenue Insights)</text>
 
-    <rect x="628" y="268" width="190" height="130" rx="12" fill="#EAF1F6" stroke="#cfe0ea"/>
-    <text x="644" y="294" font-size="13" font-weight="700" fill="#1B3139">UC Delta history</text>
-    <text x="644" y="314" font-size="10.5" fill="#8A96A3">lb_pricing_decisions</text>
-    <text x="644" y="330" font-size="10.5" fill="#8A96A3">_history (CDF output)</text>
-    <text x="644" y="356" font-size="10.5" fill="#8A96A3">SCD2 · _pg_change_type</text>
-    <text x="644" y="372" font-size="10.5" fill="#8A96A3">host decisions → analytics</text>
+    <rect x="1016" y="328" width="240" height="178" rx="12" fill="#EAF1F6" stroke="#cfe0ea"/>
+    <text x="1036" y="356" font-size="13.5" font-weight="700" fill="#1B3139">UC Delta history</text>
+    <text x="1036" y="378" font-size="11" fill="#8A96A3">lb_pricing_decisions_history</text>
+    <text x="1036" y="396" font-size="11" fill="#8A96A3">(CDF output)</text>
+    <text x="1036" y="430" font-size="11" fill="#8A96A3">SCD2 · _pg_change_type</text>
+    <text x="1036" y="448" font-size="11" fill="#8A96A3">host decisions → analytics</text>
   </g>
 
-  <!-- LAKEBASE (two schemas) -->
+  <!-- =============================== LAKEBASE ============================= -->
   <g>
-    <!-- public schema -->
-    <rect x="40" y="448" width="360" height="140" rx="12" fill="#1B3139"/>
-    <text x="56" y="472" font-size="12" font-weight="700" fill="#FFAB00">schema: public  (data flowing IN — no CDF)</text>
-    <text x="56" y="498" font-size="12.5" font-weight="700" fill="#fff">properties</text>
-    <text x="56" y="515" font-size="10.5" fill="#B9C4CA">lakebase_vector + lakebase_text (BM25)</text>
-    <text x="56" y="530" font-size="10.5" fill="#B9C4CA">+ PostGIS geo · hybrid search (RRF), 1 ACID query</text>
-    <text x="56" y="556" font-size="12.5" font-weight="700" fill="#fff">serve_property_pricing_synced</text>
-    <text x="56" y="573" font-size="10.5" fill="#B9C4CA">prices served &lt;200ms · synced from gold</text>
+    <!-- public schema (data IN, no CDF) -->
+    <rect x="48" y="590" width="440" height="168" rx="12" fill="#1B3139"/>
+    <text x="68" y="618" font-size="12.5" font-weight="700" fill="#FFAB00">schema: public  (data flowing IN — no CDF)</text>
+    <text x="68" y="648" font-size="13.5" font-weight="700" fill="#fff">properties</text>
+    <text x="68" y="668" font-size="11" fill="#B9C4CA">lakebase_vector + lakebase_text (BM25)</text>
+    <text x="68" y="685" font-size="11" fill="#B9C4CA">+ PostGIS geo · hybrid search (RRF) in 1 ACID query</text>
+    <text x="68" y="716" font-size="13.5" font-weight="700" fill="#fff">serve_property_pricing_synced</text>
+    <text x="68" y="736" font-size="11" fill="#B9C4CA">prices served &lt;200ms · synced from gold</text>
 
-    <!-- app_data schema -->
-    <rect x="416" y="448" width="300" height="140" rx="12" fill="#1B3139"/>
-    <text x="432" y="472" font-size="12" font-weight="700" fill="#00A972">schema: app_data  (data flowing OUT — CDF on)</text>
-    <text x="432" y="498" font-size="12.5" font-weight="700" fill="#fff">pricing_decisions</text>
-    <text x="432" y="515" font-size="10.5" fill="#B9C4CA">host Accept / Override writes</text>
-    <text x="432" y="530" font-size="10.5" fill="#B9C4CA">base · suggested · applied · action</text>
-    <text x="432" y="556" font-size="10.5" fill="#B9C4CA">created lazily by the app</text>
-    <text x="432" y="573" font-size="10.5" fill="#B9C4CA">(no circular sync with public)</text>
+    <!-- app_data schema (data OUT, CDF on) -->
+    <rect x="520" y="590" width="360" height="168" rx="12" fill="#1B3139"/>
+    <text x="540" y="618" font-size="12.5" font-weight="700" fill="#2272B4">schema: app_data  (data flowing OUT — CDF on)</text>
+    <text x="540" y="648" font-size="13.5" font-weight="700" fill="#fff">pricing_decisions</text>
+    <text x="540" y="668" font-size="11" fill="#B9C4CA">host Accept / Override writes</text>
+    <text x="540" y="685" font-size="11" fill="#B9C4CA">base · suggested · applied · action</text>
+    <text x="540" y="716" font-size="11" fill="#B9C4CA">created lazily by the app</text>
+    <text x="540" y="736" font-size="11" fill="#B9C4CA">(no circular sync with public)</text>
   </g>
 
-  <!-- APP -->
+  <!-- =============================== APP ================================== -->
   <g>
-    <rect x="40" y="636" width="440" height="86" rx="12" fill="#FFF1EE" stroke="#FF3621"/>
-    <text x="56" y="662" font-size="13" font-weight="700" fill="#1B3139">FastAPI + static UI</text>
-    <text x="56" y="682" font-size="10.5" fill="#3A4A52">Market Search (semantic toggle) · Pricing Studio (waterfall,</text>
-    <text x="56" y="697" font-size="10.5" fill="#3A4A52">12-mo curve, 20-mi comps, Accept/Override) · Revenue Insights</text>
-    <text x="56" y="714" font-size="10.5" fill="#8A96A3">psycopg via generate_database_credential() · reads public, writes app_data</text>
+    <rect x="48" y="836" width="520" height="104" rx="12" fill="#FFF1EE" stroke="#FF3621"/>
+    <text x="68" y="866" font-size="13.5" font-weight="700" fill="#1B3139">FastAPI + static UI</text>
+    <text x="68" y="888" font-size="11" fill="#3A4A52">Market Search (semantic toggle) · Pricing Studio (waterfall,</text>
+    <text x="68" y="906" font-size="11" fill="#3A4A52">12-mo curve, 20-mi comps, Accept/Override) · Revenue Insights (Genie)</text>
+    <text x="68" y="928" font-size="11" fill="#8A96A3">psycopg via generate_database_credential() · reads public, writes app_data</text>
 
-    <rect x="500" y="636" width="150" height="86" rx="12" fill="#FFF" stroke="#E4E0D8"/>
-    <text x="516" y="662" font-size="13" font-weight="700" fill="#1B3139">Hosts</text>
-    <text x="516" y="682" font-size="10.5" fill="#8A96A3">search market</text>
-    <text x="516" y="697" font-size="10.5" fill="#8A96A3">see &amp; apply price</text>
-    <text x="516" y="714" font-size="10.5" fill="#8A96A3">capture peak demand</text>
+    <rect x="600" y="836" width="180" height="104" rx="12" fill="#FFF" stroke="#E4E0D8"/>
+    <text x="620" y="866" font-size="13.5" font-weight="700" fill="#1B3139">Hosts</text>
+    <text x="620" y="888" font-size="11" fill="#8A96A3">search market</text>
+    <text x="620" y="906" font-size="11" fill="#8A96A3">see &amp; apply price</text>
+    <text x="620" y="928" font-size="11" fill="#8A96A3">capture peak demand</text>
   </g>
 
-  <!-- FLOWS -->
-  <!-- sources -> gold -->
-  <path d="M135,216 L135,268" fill="none" stroke="#00A972" stroke-width="2.2" marker-end="url(#ag)"/>
-  <path d="M321,216 C321,245 180,245 150,266" fill="none" stroke="#00A972" stroke-width="2.2" marker-end="url(#ag)"/>
-  <path d="M492,216 C492,248 200,248 160,266" fill="none" stroke="#00A972" stroke-width="2.2" marker-end="url(#ag)"/>
-  <!-- gold -> model serving, gold -> genie -->
-  <path d="M240,320 L256,320" fill="none" stroke="#00A972" stroke-width="2.2" marker-end="url(#ag)"/>
-  <path d="M426,330 L442,330" fill="none" stroke="#00A972" stroke-width="2.2" marker-end="url(#ag)"/>
+  <!-- =============================== FLOWS ================================ -->
+  <!-- GREEN · sources -> gold (ingest). Clear vertical lanes in the 258–328 gap. -->
+  <path d="M158,258 L158,328" fill="none" stroke="#00A972" stroke-width="2.4" marker-end="url(#ag)"/>
+  <path d="M390,258 C390,296 300,296 230,326" fill="none" stroke="#00A972" stroke-width="2.4" marker-end="url(#ag)"/>
+  <path d="M607,258 C607,300 320,300 250,326" fill="none" stroke="#00A972" stroke-width="2.4" marker-end="url(#ag)"/>
 
-  <!-- Reverse ETL: gold/model -> public schema -->
-  <path d="M150,398 L150,448" fill="none" stroke="#00A972" stroke-width="2.6" marker-end="url(#ag)"/>
-  <path d="M330,398 C330,425 250,428 230,446" fill="none" stroke="#00A972" stroke-width="2.6" marker-end="url(#ag)"/>
-  <text x="156" y="426" font-size="10.5" font-weight="700" fill="#00A972">Reverse ETL · Synced Tables</text>
+  <!-- GREEN · gold -> model serving, gold -> genie (horizontal, inside lakehouse band) -->
+  <path d="M288,398 L320,398" fill="none" stroke="#00A972" stroke-width="2.4" marker-end="url(#ag)"/>
+  <path d="M540,410 L572,410" fill="none" stroke="#00A972" stroke-width="2.4" marker-end="url(#ag)"/>
 
-  <!-- serving: public -> app (fast reads) -->
-  <path d="M200,588 L200,636" fill="none" stroke="#FF3621" stroke-width="2.6" marker-end="url(#al)"/>
-  <text x="206" y="616" font-size="10.5" font-weight="700" fill="#FF3621">&lt;200ms reads</text>
-  <!-- app writes -> app_data -->
-  <path d="M420,636 C470,610 540,600 560,588" fill="none" stroke="#FF3621" stroke-width="2.6" marker-end="url(#al)"/>
-  <text x="470" y="615" font-size="10.5" font-weight="700" fill="#FF3621">Accept/Override writes</text>
+  <!-- PURPLE · Reverse ETL: gold + model -> public schema. Big clear gap 506–590. -->
+  <path d="M160,506 L160,590" fill="none" stroke="#8E6FD8" stroke-width="3" marker-end="url(#ap)"/>
+  <path d="M400,506 C400,548 330,552 300,588" fill="none" stroke="#8E6FD8" stroke-width="3" marker-end="url(#ap)"/>
+  <text x="172" y="552" font-size="12" font-weight="700" fill="#8E6FD8">Reverse ETL · Synced Tables</text>
 
-  <!-- CDF: app_data -> UC Delta history -->
-  <path d="M620,448 C690,410 700,410 710,398" fill="none" stroke="#2272B4" stroke-width="2.6" marker-end="url(#ab)"/>
-  <text x="628" y="430" font-size="10.5" font-weight="700" fill="#2272B4">Lakebase CDF (SCD2)</text>
-  <!-- CDF history -> genie -->
-  <path d="M628,340 L612,340" fill="none" stroke="#2272B4" stroke-width="2.2" marker-end="url(#ab)"/>
+  <!-- RED · public -> app (fast reads) -->
+  <path d="M230,758 L230,836" fill="none" stroke="#FF3621" stroke-width="3" marker-end="url(#al)"/>
+  <text x="242" y="800" font-size="12" font-weight="700" fill="#FF3621">&lt;200ms reads</text>
 
-  <!-- genie -> app (analytics) -->
-  <path d="M470,398 C470,520 460,560 300,634" fill="none" stroke="#00A972" stroke-width="1.8" opacity="0.5" marker-end="url(#ag)"/>
+  <!-- RED · app -> app_data (Accept/Override writes) -->
+  <path d="M520,878 C600,840 650,800 680,760" fill="none" stroke="#FF3621" stroke-width="3" marker-end="url(#al)"/>
+  <text x="560" y="812" font-size="12" font-weight="700" fill="#FF3621">Accept / Override writes</text>
 
-  <!-- user traffic -->
-  <path d="M500,679 L480,679" fill="none" stroke="#FFAB00" stroke-width="2.6" marker-end="url(#ao)"/>
+  <!-- BLUE · CDF: app_data -> UC Delta history -->
+  <path d="M884,648 C980,560 1060,540 1120,508" fill="none" stroke="#2272B4" stroke-width="3" marker-end="url(#ab)"/>
+  <text x="912" y="588" font-size="12" font-weight="700" fill="#2272B4">Lakebase CDF (SCD2)</text>
 
-  <text x="32" y="736" font-size="10.5" fill="#8A96A3">Lakebase Search (hybrid) · Reverse ETL (powers live prices) · Lakebase CDF (write-back) · Genie · Model Serving · Databricks Apps</text>
+  <!-- BLUE · UC Delta history -> Genie (analytics source) -->
+  <path d="M1016,420 L792,420" fill="none" stroke="#2272B4" stroke-width="2.4" marker-end="url(#ab)"/>
+
+  <!-- GREEN (faint) · Genie -> app (Revenue Insights) -->
+  <path d="M640,506 C640,680 560,760 400,834" fill="none" stroke="#00A972" stroke-width="2" opacity="0.45" marker-end="url(#ag)"/>
+
+  <!-- AMBER · hosts -> app (user traffic) -->
+  <path d="M600,888 L568,888" fill="none" stroke="#FFAB00" stroke-width="3" marker-end="url(#ao)"/>
+
+  <text x="40" y="972" font-size="11" fill="#8A96A3">Lakebase Search (hybrid) · Reverse ETL (powers live prices) · Lakebase CDF (write-back) · Genie · Model Serving · Databricks Apps</text>
 </svg>
