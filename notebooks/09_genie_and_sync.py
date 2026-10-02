@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md
 # MAGIC # PriceWise · 09 · Genie analytics + Lakebase CDF (write-back loop)
 # MAGIC
@@ -14,19 +18,35 @@
 # MAGIC (creates the `pricing_decisions` table).
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Part A — Prep gold views for Genie
 # MAGIC Genie answers best over clean, well-named tables/views with clear columns. We create a couple of
 # MAGIC analytics views that map directly to the questions we want to demo.
 
 # COMMAND ----------
+
 CAT, SCH = "hackathon", "data_axle"
 spark.sql(f"USE CATALOG {CAT}"); spark.sql(f"USE SCHEMA {SCH}")
+
+# Deterministic display name — matches the app's DISPLAY_NAME_SQL in queries.py
+DISPLAY_NAME_SPARK = """
+  CONCAT(
+    ARRAY('Azure','Golden','Serene','Coastal','Hidden','Sunlit','Palm','Ocean','Bella','Casa',
+          'Marina','Lagoon','Sunset','Terra','Amara','Vista','Breeze','Coral','Zephyr','Laguna')
+      [CAST(property_id % 20 AS INT)],
+    ' ',
+    ARRAY('Retreat','Haven','Escape','Nest','Sands','Shores','Hideaway','Cove','Terrace','Garden',
+          'Loft','House','Villa','Suites','Bungalow','Residence','Quarters','Lodge','Palms','Bay')
+      [CAST(FLOOR(property_id / 7) % 20 AS INT)]
+  )
+"""
 
 # Under-pricing view: how much upside each listing has at peak vs base
 spark.sql(f"""
 CREATE OR REPLACE VIEW {CAT}.{SCH}.v_underpricing AS
-SELECT property_id, destination, country, property_type, target_month,
+SELECT property_id, title, {DISPLAY_NAME_SPARK} AS display_name,
+       destination, country, property_type, target_month,
        base_price, suggested_price,
        round(suggested_price - base_price, 2) AS uplift_dollars,
        round(100*(suggested_price - base_price)/nullif(base_price,0), 1) AS uplift_pct
@@ -47,6 +67,7 @@ GROUP BY destination, country, target_month
 display(spark.sql(f"SELECT * FROM {CAT}.{SCH}.v_underpricing ORDER BY uplift_pct DESC LIMIT 8"))
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Create the Genie space (UI — one time)
 # MAGIC Genie spaces are created in the **UI** (Genie is a workspace surface, not a pure-API object).
@@ -83,6 +104,7 @@ display(spark.sql(f"SELECT * FROM {CAT}.{SCH}.v_underpricing ORDER BY uplift_pct
 # MAGIC the live call, otherwise the Insights tab links out to the space.
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Part B — Lakebase CDF: Lakebase → UC (the write-back loop)
 # MAGIC The app writes host actions — an Accept/Override = a row in Lakebase `app_data.pricing_decisions`.
@@ -110,6 +132,7 @@ display(spark.sql(f"SELECT * FROM {CAT}.{SCH}.v_underpricing ORDER BY uplift_pct
 # MAGIC is self-provisioning. So before CDF has anything to capture, click Accept/Override once in the app.
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### Cleanup: drop the stale `public.pricing_decisions`
 # MAGIC Early builds created `pricing_decisions` in `public` before we moved it to `app_data`. That stale
@@ -118,10 +141,12 @@ display(spark.sql(f"SELECT * FROM {CAT}.{SCH}.v_underpricing ORDER BY uplift_pct
 # MAGIC the live data is in `app_data`. (Connects to Lakebase like notebook 04/05.)
 
 # COMMAND ----------
+
 # MAGIC %pip install --quiet "databricks-sdk>=0.89.0" "psycopg[binary]>=3.1.0"
 # MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
+
 import psycopg
 from databricks.sdk import WorkspaceClient
 _w = WorkspaceClient()
@@ -142,28 +167,29 @@ with _conn() as c, c.cursor() as cur:
     cur.execute("DROP TABLE IF EXISTS public.pricing_decisions")
     print("✅ dropped public.pricing_decisions (if it existed)")
     print("public.pricing_decisions now:", cnt("public.pricing_decisions"))
-# MAGIC
-# MAGIC ### Set up (one time)
-# MAGIC **Step 1 (OPTIONAL) — replica identity.** This is a *Postgres table-level* setting (WAL verbosity),
-# MAGIC **not** a CDF setting. By default Postgres logs only the primary key on UPDATE/DELETE; `FULL` logs
-# MAGIC the complete before/after row.
-# MAGIC - **For PriceWise you likely DON'T need it:** `pricing_decisions` is append-only (each decision is a
-# MAGIC   new INSERT) and our `v_decisions_current` only keeps the latest row per `decision_id` — we never
-# MAGIC   diff old-vs-new columns. The default identity is sufficient.
-# MAGIC - **Set it only if** you later want full before/after snapshots on updates/deletes:
-# MAGIC   ```sql
-# MAGIC   ALTER TABLE app_data.pricing_decisions REPLICA IDENTITY FULL;   -- optional
-# MAGIC   ```
-# MAGIC **Step 2 — start the CDF feed** from the Lakebase project UI:
-# MAGIC 1. Open the **`pricewise-db`** project.
-# MAGIC 2. Click the **branch name** in the top breadcrumb → **Branch overview**.
-# MAGIC 3. Open the **Lakebase CDF** tab → **Start**.
-# MAGIC 4. Source schema **`app_data`** → destination catalog **`hackathon`**, destination schema **`data_axle`**.
-# MAGIC
-# MAGIC The initial snapshot begins immediately. CDF creates a Delta table named with an `lb_` prefix and
-# MAGIC `_history` suffix → **`hackathon.data_axle.lb_pricing_decisions_history`**.
+
+### Set up (one time)
+**Step 1 (OPTIONAL) — replica identity.** This is a *Postgres table-level* setting (WAL verbosity),
+**not** a CDF setting. By default Postgres logs only the primary key on UPDATE/DELETE; `FULL` logs
+the complete before/after row.
+- **For PriceWise you likely DON'T need it:** `pricing_decisions` is append-only (each decision is a
+  new INSERT) and our `v_decisions_current` only keeps the latest row per `decision_id` — we never
+  diff old-vs-new columns. The default identity is sufficient.
+- **Set it only if** you later want full before/after snapshots on updates/deletes:
+  ```sql
+  ALTER TABLE app_data.pricing_decisions REPLICA IDENTITY FULL;   -- optional
+  ```
+**Step 2 — start the CDF feed** from the Lakebase project UI:
+1. Open the **`pricewise-db`** project.
+2. Click the **branch name** in the top breadcrumb → **Branch overview**.
+3. Open the **Lakebase CDF** tab → **Start**.
+4. Source schema **`app_data`** → destination catalog **`hackathon`**, destination schema **`data_axle`**.
+
+The initial snapshot begins immediately. CDF creates a Delta table named with an `lb_` prefix and
+`_history` suffix → **`hackathon.data_axle.lb_pricing_decisions_history`**.
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Verify the write-back (after Step 1+2 and an Accept/Override in the app)
 # MAGIC 1. In the app's Pricing Studio, click **Accept suggested price** or **Apply** an override
@@ -171,6 +197,7 @@ with _conn() as c, c.cursor() as cur:
 # MAGIC 2. Wait ~15s for the CDF flush, then query the history table in UC below.
 
 # COMMAND ----------
+
 # CDF names the table lb_<table>_history. Change here only if your CDF used a different name.
 SYNCED_CDF = f"{CAT}.{SCH}.lb_pricing_decisions_history"
 try:
@@ -214,6 +241,87 @@ except Exception as e:
     print("Detail:", str(e)[:160])
 
 # COMMAND ----------
+
+# MAGIC %sql
+# MAGIC
+# MAGIC
+# MAGIC -- 2. Schema access
+# MAGIC GRANT USE SCHEMA ON SCHEMA hackathon.data_axle TO `7b043729-2428-4d30-97e3-f34145aeaa26`;
+# MAGIC
+# MAGIC -- 3. SELECT on all tables in the schema
+# MAGIC GRANT SELECT ON SCHEMA hackathon.data_axle TO `7b043729-2428-4d30-97e3-f34145aeaa26`;
+
+# COMMAND ----------
+
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.apps import App
+
+w = WorkspaceClient()
+w.apps.update(
+    name="pricewise",
+    app=App(
+        name="pricewise",
+        user_api_scopes=["sql", "model-serving","genie"]
+    )
+)
+
+# COMMAND ----------
+
+try:
+    import psycopg
+except ModuleNotFoundError:
+    import subprocess
+    subprocess.check_call(["pip", "install", "-q", "psycopg[binary]>=3.1.0"])
+    import psycopg
+from databricks.sdk import WorkspaceClient
+
+w = WorkspaceClient()
+
+# Discover Lakebase endpoint
+branch = next(iter(w.postgres.list_branches(parent="projects/pricewise-db")))
+endpoint = next(iter(w.postgres.list_endpoints(parent=branch.name)))
+host = endpoint.status.hosts.host
+
+# Authenticate as you (project owner)
+cred = w.postgres.generate_database_credential(endpoint=endpoint.name)
+user = w.current_user.me().user_name
+
+conn = psycopg.connect(
+    host=host, dbname="databricks_postgres", user=user,
+    password=cred.token, port=5432, sslmode="require", autocommit=True
+)
+
+SP = "7b043729-2428-4d30-97e3-f34145aeaa26"
+
+grants = [
+    # Core search/pricing tables
+    f'GRANT SELECT ON TABLE properties TO "{SP}"',
+    f'GRANT SELECT ON TABLE property_pricing TO "{SP}"',
+    # Synced pricing (Reverse ETL) schema
+    f'GRANT USAGE ON SCHEMA data_axle TO "{SP}"',
+    f'GRANT SELECT ON ALL TABLES IN SCHEMA data_axle TO "{SP}"',
+    # User save actions
+    f'GRANT SELECT, INSERT ON TABLE saved_properties TO "{SP}"',
+    # App-written pricing decisions
+    f'GRANT USAGE, CREATE ON SCHEMA app_data TO "{SP}"',
+    f'GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA app_data TO "{SP}"',
+    # Sequences (needed for serial/identity columns like decision_id)
+    f'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA app_data TO "{SP}"',
+]
+
+with conn.cursor() as cur:
+    for sql in grants:
+        try:
+            cur.execute(sql)
+            print(f"OK:   {sql}")
+        except Exception as e:
+            print(f"SKIP: {sql}  ->  {e}")
+
+conn.close()
+print("\nAll grants applied.")
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## ✅ Checkpoint
 # MAGIC - **Genie space** over gold answers plain-English pricing/market questions, and — after Part B —

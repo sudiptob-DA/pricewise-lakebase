@@ -300,35 +300,222 @@ async function askGenie() {
   const q = $("#genieInput").value.trim();
   if (!q) return;
   const out = $("#genieAnswer");
-  out.innerHTML = `<div class="genie-thinking">Asking Genie… <span class="muted">(reads schema, writes SQL, runs it)</span></div>`;
+  // Show initial reasoning UI with animated steps
+  out.innerHTML = `<div class="genie-reasoning">
+    <div class="genie-steps" id="genieSteps"></div>
+    <div class="genie-elapsed muted" id="genieElapsed"></div>
+  </div>`;
+  const stepsEl = $("#genieSteps");
+  const elapsedEl = $("#genieElapsed");
   try {
-    const r = await fetch("/api/genie/ask", {
+    const r = await fetch("/api/genie/ask-stream", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ question: q, conversation_id: genieConversationId })
     });
     if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || r.statusText);
-    const d = await r.json();
-    genieConversationId = d.conversation_id || genieConversationId;
-    renderGenieAnswer(d);
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();  // keep incomplete line in buffer
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const evt = JSON.parse(line.slice(6));
+        if (evt.type === "step") {
+          // Mark previous steps as completed, add new active step
+          stepsEl.querySelectorAll(".genie-step.active").forEach(el => {
+            el.classList.remove("active");
+            el.classList.add("done");
+            el.querySelector(".step-icon").textContent = "\u2713";
+          });
+          const step = document.createElement("div");
+          step.className = "genie-step active";
+          step.innerHTML = `<span class="step-icon spinner"></span> ${evt.label}`;
+          stepsEl.appendChild(step);
+          elapsedEl.textContent = `${evt.elapsed}s`;
+        } else if (evt.type === "result") {
+          genieConversationId = evt.conversation_id || genieConversationId;
+          // Mark final step done
+          stepsEl.querySelectorAll(".genie-step.active").forEach(el => {
+            el.classList.remove("active");
+            el.classList.add("done");
+            el.querySelector(".step-icon").textContent = "\u2713";
+          });
+          // Brief pause so user sees the completed steps before results
+          await new Promise(ok => setTimeout(ok, 400));
+          renderGenieAnswer(evt);
+          return;
+        } else if (evt.type === "error") {
+          out.innerHTML = `<div class="err">${evt.error}. Try "Open in Genie \u2197".</div>`;
+          return;
+        }
+      }
+    }
   } catch (e) {
-    out.innerHTML = `<div class="err">Genie: ${e.message}. Try "Open in Genie ↗".</div>`;
+    out.innerHTML = `<div class="err">Genie: ${e.message}. Try "Open in Genie \u2197".</div>`;
   }
 }
 
+/* ---------- Genie: markdown parser ---------- */
+function parseMd(text) {
+  if (!text) return "";
+  let h = text
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/`(.+?)`/g, "<code>$1</code>");
+  // Headers
+  h = h.replace(/^### (.+)$/gm, '<h4 class="genie-h">$1</h4>');
+  h = h.replace(/^## (.+)$/gm, '<h3 class="genie-h">$1</h3>');
+  h = h.replace(/^# (.+)$/gm, '<h2 class="genie-h">$1</h2>');
+  // Numbered lists: consecutive lines starting with digits
+  h = h.replace(/((?:^\d+\. .+$\n?)+)/gm, (block) => {
+    const items = block.trim().split("\n").map(l => `<li>${l.replace(/^\d+\.\s*/, "")}</li>`).join("");
+    return `<ol class="genie-ol">${items}</ol>`;
+  });
+  // Bullet lists
+  h = h.replace(/((?:^- .+$\n?)+)/gm, (block) => {
+    const items = block.trim().split("\n").map(l => `<li>${l.replace(/^- /, "")}</li>`).join("");
+    return `<ul class="genie-ul">${items}</ul>`;
+  });
+  // Paragraphs (double newline)
+  h = h.replace(/\n{2,}/g, "</p><p>");
+  h = h.replace(/\n/g, "<br>");
+  return `<p>${h}</p>`;
+}
+
+/* ---------- Genie: chart detection + rendering ---------- */
+let genieChartCounter = 0;
+function isNumeric(v) { return v != null && v !== "" && !isNaN(Number(v)); }
+
+function detectChart(q) {
+  if (!q.columns || q.columns.length < 2 || !q.rows || q.rows.length < 2) return null;
+  // Find label column (first string/non-numeric) and value columns (numeric)
+  const labelIdx = q.rows[0].findIndex((v, i) => !isNumeric(v));
+  if (labelIdx < 0) return null;
+  const valIdxs = [];
+  for (let i = 0; i < q.columns.length; i++) {
+    if (i !== labelIdx && q.rows.every(r => isNumeric(r[i]))) valIdxs.push(i);
+  }
+  if (valIdxs.length === 0) return null;
+  return { labelIdx, valIdxs };
+}
+
+const CHART_COLORS = ["#1a73e8","#e8a01a","#2e7d32","#d93025","#7b1fa2","#00838f"];
+
+function renderChart(q, chartInfo, containerId) {
+  const labels = q.rows.map(r => r[chartInfo.labelIdx] ?? "");
+  const datasets = chartInfo.valIdxs.map((vi, di) => ({
+    label: q.columns[vi].replace(/_/g, " "),
+    data: q.rows.map(r => Number(r[vi])),
+    backgroundColor: CHART_COLORS[di % CHART_COLORS.length],
+    borderColor: CHART_COLORS[di % CHART_COLORS.length],
+    borderWidth: 1
+  }));
+  const isBar = labels.length <= 25;
+  setTimeout(() => {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    new Chart(el.getContext("2d"), {
+      type: isBar ? "bar" : "line",
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: datasets.length > 1, position: "top" },
+                   title: { display: !!q.description, text: q.description, font: { size: 13 } } },
+        scales: { x: { ticks: { maxRotation: 45 } }, y: { beginAtZero: true } }
+      }
+    });
+  }, 50);
+}
+
+/* ---------- Genie: render a single query result (table + optional chart) ---------- */
+function renderQueryBlock(q, idx) {
+  let html = "";
+  const chartInfo = detectChart(q);
+  if (chartInfo) {
+    const cid = `genieChart${genieChartCounter++}`;
+    html += `<div class="genie-chart-wrap"><canvas id="${cid}"></canvas></div>`;
+    setTimeout(() => renderChart(q, chartInfo, cid), 0);
+  }
+  if (q.columns && q.columns.length && q.rows && q.rows.length) {
+    html += `<div class="genie-tablewrap"><table class="genie-table"><thead><tr>` +
+      q.columns.map(c => `<th>${c.replace(/_/g, " ")}</th>`).join("") + `</tr></thead><tbody>` +
+      q.rows.slice(0, 15).map(row => `<tr>` + row.map(v => `<td>${v == null ? "" : v}</td>`).join("") + `</tr>`).join("") +
+      `</tbody></table></div>`;
+    if (q.row_count > 15) html += `<div class="muted">&hellip; ${q.row_count} rows total</div>`;
+  }
+  if (q.sql) html += `<details class="genie-sql"><summary>Show code</summary><pre>${q.sql}</pre></details>`;
+  return html;
+}
+
+/* ---------- Genie: main answer renderer ---------- */
 function renderGenieAnswer(d) {
   const out = $("#genieAnswer");
   if (d.error) { out.innerHTML = `<div class="err">${d.error}</div>`; return; }
   let html = "";
-  if (d.text) html += `<div class="genie-text">${d.text}</div>`;
-  if (d.follow_up) html += `<div class="genie-followup">↳ ${d.follow_up}</div>`;
-  if (d.columns && d.columns.length && d.rows && d.rows.length) {
-    html += `<div class="genie-tablewrap"><table class="genie-table"><thead><tr>` +
-      d.columns.map(c => `<th>${c}</th>`).join("") + `</tr></thead><tbody>` +
-      d.rows.slice(0, 15).map(row => `<tr>` + row.map(v => `<td>${v == null ? "" : v}</td>`).join("") + `</tr>`).join("") +
-      `</tbody></table></div>`;
-    if (d.row_count > 15) html += `<div class="muted">… ${d.row_count} rows total</div>`;
+
+  // 1. Thought process — show tables analyzed, result shape, SQL
+  if (d.queries && d.queries.length) {
+    html += `<details class="genie-thought">`;
+    html += `<summary><span class="thought-icon">&#10024;</span> Thought process</summary>`;
+    html += `<div class="thought-body">`;
+    d.queries.forEach((q, i) => {
+      // Extract table/view names from SQL
+      const tables = [];
+      if (q.sql) {
+        const rx = /(?:FROM|JOIN)\s+(?:[`"]?\w+[`"]?\.)*[`"]?(\w+)[`"]?/gi;
+        let m; while ((m = rx.exec(q.sql)) !== null) {
+          const t = m[1].toLowerCase();
+          if (!tables.includes(t) && !['ranked','cte','sub','t','t1','t2'].includes(t)) tables.push(t);
+        }
+      }
+      const nCols = (q.columns || []).length;
+      const nRows = q.row_count || (q.rows || []).length;
+      html += `<div class="thought-card">`;
+      if (tables.length) {
+        html += `<div class="thought-tables">`;
+        tables.forEach(t => { html += `<span class="thought-tag">${t.replace(/_/g, ' ')}</span>`; });
+        html += `</div>`;
+      }
+      html += `<div class="thought-meta">`;
+      if (nRows) html += `<span>${nRows} row${nRows !== 1 ? 's' : ''} returned</span>`;
+      if (nCols) html += `<span>&middot; ${nCols} columns</span>`;
+      html += `</div>`;
+      if (q.sql) {
+        html += `<details class="thought-sql"><summary>Show SQL</summary><pre>${q.sql}</pre></details>`;
+      }
+      html += `</div>`;
+    });
+    html += `</div></details>`;
   }
-  if (d.sql) html += `<details class="genie-sql"><summary>SQL Genie generated</summary><pre>${d.sql}</pre></details>`;
+
+  // 2. Key findings (parsed markdown)
+  if (d.text) html += `<div class="genie-text">${parseMd(d.text)}</div>`;
+  if (d.follow_up) html += `<div class="genie-followup">&larrhk; ${d.follow_up}</div>`;
+
+  // 3. Charts + tables for each query
+  if (d.queries && d.queries.length) {
+    d.queries.forEach((q, i) => {
+      if (q.rows && q.rows.length) {
+        html += `<div class="genie-result-block">`;
+        if (q.description) html += `<div class="genie-result-title">${q.description}</div>`;
+        html += renderQueryBlock(q, i);
+        html += `</div>`;
+      }
+    });
+  } else if (d.columns && d.columns.length && d.rows && d.rows.length) {
+    // Fallback: legacy single-query response
+    html += renderQueryBlock(d, 0);
+  }
+
+  // 4. Elapsed time
+  if (d.elapsed) html += `<div class="muted genie-elapsed-tag">${d.elapsed}s</div>`;
+
   out.innerHTML = html || `<div class="muted">No answer returned.</div>`;
 }
 

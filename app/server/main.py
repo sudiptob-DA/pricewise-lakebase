@@ -15,7 +15,7 @@ Routes:
 """
 import os
 from fastapi import FastAPI, Query, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -66,6 +66,21 @@ def genie_ask(req: GenieAsk):
         return GenieClient(space_id).ask(req.question, req.conversation_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Genie error: {e}")
+
+
+@app.post("/api/genie/ask-stream")
+def genie_ask_stream(req: GenieAsk):
+    """SSE endpoint: streams intermediate reasoning steps, then the final answer."""
+    space_id = _genie_space_id()
+    if not space_id:
+        raise HTTPException(status_code=503, detail="Genie not configured (set GENIE_SPACE_ID/URL).")
+    from .genie_client import GenieClient
+    client = GenieClient(space_id)
+    return StreamingResponse(
+        client.ask_streaming(req.question, req.conversation_id),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/api/destinations")
