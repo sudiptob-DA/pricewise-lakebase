@@ -1,7 +1,3 @@
-# PriceWise — Declarative Automation Bundle (Databricks Asset Bundle)
-# Deploys the FastAPI + static UI as a Databricks App.
-# The app source lives in ./app (which contains app.yaml, requirements.txt, server/, static/).
-
 bundle:
   name: pricewise
 
@@ -9,10 +5,31 @@ resources:
   apps:
     pricewise_app:
       name: "pricewise"
-      source_code_path: ./app          # folder containing app.yaml + the app code
+      source_code_path: ./app
       description: "PriceWise — demand-aware pricing & smart search on Lakebase"
-      # Grant the app's service principal access to the resources it needs.
-      # (The app reads the pricewise-db Lakebase project and the embedding serving endpoint.)
+      user_api_scopes:
+        - sql
+        - model-serving
+        - genie
+        - postgres
+        - "catalog.catalogs:read"
+        - "catalog.schemas:read"
+        - "catalog.tables:read"
+      resources:
+        - name: database
+          postgres:
+            branch: projects/pricewise-db/branches/production
+            database: projects/pricewise-db/branches/production/databases/databricks-postgres
+            permission: CAN_CONNECT_AND_CREATE
+        - name: embedding-endpoint
+          serving_endpoint:
+            name: databricks-gte-large-en
+            permission: CAN_QUERY
+        - name: genie-space
+          genie_space:
+            name: "PriceWise Analytics"
+            space_id: "01f1bdd0b16c164789517b59f5ede336"
+            permission: CAN_MANAGE
       permissions:
         - level: CAN_USE
           group_name: users
