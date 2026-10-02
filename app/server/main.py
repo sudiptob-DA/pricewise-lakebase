@@ -63,7 +63,13 @@ def genie_ask(req: GenieAsk):
         raise HTTPException(status_code=503, detail="Genie not configured (set GENIE_SPACE_ID/URL).")
     try:
         from .genie_client import GenieClient
-        return GenieClient(space_id).ask(req.question, req.conversation_id)
+        turn = GenieClient(space_id).ask(req.question, req.conversation_id)
+        # Persist to Lakebase (async-safe: fire and forget on error)
+        try:
+            queries.save_genie_conversation(turn)
+        except Exception:
+            pass  # don't fail the response if persistence fails
+        return turn
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Genie error: {e}")
 
@@ -76,11 +82,49 @@ def genie_ask_stream(req: GenieAsk):
         raise HTTPException(status_code=503, detail="Genie not configured (set GENIE_SPACE_ID/URL).")
     from .genie_client import GenieClient
     client = GenieClient(space_id)
+
+    def stream_and_persist():
+        """Yield SSE events, then persist the final result to Lakebase."""
+        last_turn = None
+        for event in client.ask_streaming(req.question, req.conversation_id):
+            yield event
+            # Capture the result event for persistence
+            if '"type": "result"' in event or '"type":"result"' in event:
+                import json
+                try:
+                    data = json.loads(event.removeprefix("data: ").strip())
+                    last_turn = data
+                except Exception:
+                    pass
+        if last_turn:
+            try:
+                queries.save_genie_conversation(last_turn)
+            except Exception:
+                pass
+
     return StreamingResponse(
-        client.ask_streaming(req.question, req.conversation_id),
+        stream_and_persist(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.get("/api/genie/stats")
+def genie_stats():
+    """Agent usage analytics — proves persistent memory with live KPIs."""
+    try:
+        return queries.genie_stats()
+    except Exception as e:
+        return {"total_queries": 0, "avg_elapsed": 0, "top_tables": [], "error": str(e)}
+
+
+@app.get("/api/genie/recent")
+def genie_recent():
+    """Last 5 Genie questions — proves cross-session persistent memory."""
+    try:
+        return queries.genie_recent()
+    except Exception:
+        return []
 
 
 @app.get("/api/destinations")

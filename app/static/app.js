@@ -267,17 +267,94 @@ async function loadSampleStudio() {
 }
 
 /* ---------- insights ---------- */
+const MONTH_NAMES_FULL = ["","January","February","March","April","May","June",
+  "July","August","September","October","November","December"];
+const PEAK_MONTHS = new Set([6,7,8]);
+
+async function loadGenieStats() {
+  try {
+    const g = await api("/api/genie/stats");
+    let topTbls = "";
+    if (g.top_tables && g.top_tables.length) {
+      topTbls = g.top_tables.map(t => `<span class="thought-tag">${(t.tbl||"").replace(/_/g," ")}</span>`).join(" ");
+    }
+    $("#genieKpi").innerHTML = `
+      <div class="box"><b>${g.total_queries || 0}</b>total queries</div>
+      <div class="box"><b>${g.avg_elapsed || 0}s</b>avg response time</div>
+      <div class="box wide">${topTbls || '<span class="muted">no queries yet</span>'}<br><span class="muted">top tables queried</span></div>`;
+  } catch (e) {
+    $("#genieKpi").innerHTML = `<div class="muted">Ask a question below to see agent analytics.</div>`;
+  }
+}
+
+let _recentCache = [];  // stash full rows for click-to-render
+
+async function loadGenieRecent() {
+  const el = $("#genieRecent");
+  if (!el) return;
+  try {
+    _recentCache = await api("/api/genie/recent");
+    if (!_recentCache.length) { el.innerHTML = ""; return; }
+    el.innerHTML = `<div class="recent-title">Recent questions <span class="muted">(saved to Lakebase)</span></div>` +
+      _recentCache.map((r, i) => {
+        const tbls = (r.tables_used || "").split(", ").filter(Boolean).map(t =>
+          `<span class="thought-tag sm">${t.replace(/_/g," ")}</span>`).join(" ");
+        return `<div class="recent-row" data-idx="${i}">
+          <span class="recent-q">${r.question}</span>
+          <span class="recent-meta">${tbls} <span class="muted">${r.elapsed_sec || ""}s \u00b7 ${r.asked_at || ""}</span></span>
+        </div>`;
+      }).join("");
+    // Click → render cached answer instantly from Lakebase
+    el.querySelectorAll(".recent-row").forEach(row => {
+      row.style.cursor = "pointer";
+      row.onclick = () => renderCachedAnswer(_recentCache[+row.dataset.idx]);
+    });
+  } catch (e) { el.innerHTML = ""; }
+}
+
+function renderCachedAnswer(r) {
+  const out = $("#genieAnswer");
+  $("#genieInput").value = r.question;
+  let html = `<div class="cached-badge">\u26a1 Instant \u2014 served from Lakebase memory</div>`;
+  // Thought process (from cached SQL)
+  if (r.sql_generated) {
+    const tables = [];
+    const rx = /(?:FROM|JOIN)\s+(?:[`"\w]+\.)*[`"]?(\w+)[`"]?/gi;
+    let m; while ((m = rx.exec(r.sql_generated)) !== null) {
+      const t = m[1].toLowerCase();
+      if (!tables.includes(t) && !['ranked','cte','sub','t','t1','t2'].includes(t)) tables.push(t);
+    }
+    html += `<details class="genie-thought"><summary><span class="thought-icon">&#10024;</span> Thought process</summary><div class="thought-body"><div class="thought-card">`;
+    if (tables.length) html += `<div class="thought-tables">${tables.map(t => `<span class="thought-tag">${t.replace(/_/g," ")}</span>`).join("")}</div>`;
+    if (r.row_count) html += `<div class="thought-meta"><span>${r.row_count} rows returned</span></div>`;
+    html += `<details class="thought-sql"><summary>Show SQL</summary><pre>${r.sql_generated}</pre></details></div></div></details>`;
+  }
+  // Answer text
+  if (r.answer_text) html += `<div class="genie-text">${parseMd(r.answer_text)}</div>`;
+  // Elapsed + re-ask link
+  html += `<div class="cached-footer">`;
+  if (r.elapsed_sec) html += `<span class="muted">${r.elapsed_sec}s (original) \u00b7 ${r.asked_at || ""}</span>`;
+  html += ` <a href="#" class="reask-link" onclick="event.preventDefault(); askGenie(); return false;">Re-ask Genie \u21bb</a></div>`;
+  out.innerHTML = html;
+}
+
 let genieLoaded = false;
 async function loadMarket() {
+  const mo = getMonth();
+  const moLabel = MONTH_NAMES_FULL[mo] || "";
+  const peak = PEAK_MONTHS.has(mo) ? ` <span class="peak-tag">peak season</span>` : "";
   try {
-    const m = await api("/api/market?month=" + getMonth());
+    const m = await api("/api/market?month=" + mo);
     $("#marketKpi").innerHTML = `
       <div class="box"><b>${(m.listings||0).toLocaleString()}</b>listings priced</div>
       <div class="box"><b>${money(m.avg_uplift)}</b>avg uplift / night</div>
-      <div class="box"><b>${m.avg_uplift_pct ?? "—"}%</b>avg uplift</div>`;
+      <div class="box"><b>${m.avg_uplift_pct ?? "—"}%</b>avg uplift${peak}</div>
+      <div class="box month-tag"><b>${moLabel}</b>selected month</div>`;
   } catch (e) {
     $("#marketKpi").innerHTML = `<div class="err">${e.message}</div>`;
   }
+  loadGenieStats();
+  loadGenieRecent();
   if (!genieLoaded) { genieLoaded = true; initGenie(); }
 }
 
@@ -348,6 +425,8 @@ async function askGenie() {
           // Brief pause so user sees the completed steps before results
           await new Promise(ok => setTimeout(ok, 400));
           renderGenieAnswer(evt);
+          loadGenieStats();   // refresh agent usage stats
+          loadGenieRecent();  // refresh recent queries list
           return;
         } else if (evt.type === "error") {
           out.innerHTML = `<div class="err">${evt.error}. Try "Open in Genie \u2197".</div>`;

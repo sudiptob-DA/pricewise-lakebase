@@ -231,6 +231,79 @@ def apply_price(property_id: int, month: int, applied_price: float, action: str,
             "base_price": ctx.get("base_price"), "suggested_price": ctx.get("suggested_price")}
 
 
+# ── Genie conversation persistence (Track 2: agent persistent memory) ──────────
+
+def _ensure_genie_conversations_table() -> None:
+    """Create the genie_conversations table on first use — persistent agent memory."""
+    db.execute(f"CREATE SCHEMA IF NOT EXISTS {APP_SCHEMA}")
+    db.execute(f"""
+        CREATE TABLE IF NOT EXISTS {APP_SCHEMA}.genie_conversations (
+            id              BIGSERIAL PRIMARY KEY,
+            conversation_id TEXT,
+            question        TEXT NOT NULL,
+            answer_text     TEXT,
+            sql_generated   TEXT,
+            tables_used     TEXT,
+            row_count       INT,
+            elapsed_sec     REAL,
+            asked_at        TIMESTAMPTZ DEFAULT now()
+        )
+    """)
+
+
+def save_genie_conversation(turn: dict) -> None:
+    """Persist a Genie Q&A to Lakebase — flows back to UC via CDF for analytics."""
+    _ensure_genie_conversations_table()
+    # Extract table names from SQL for the tables_used column
+    tables = ""
+    sql = turn.get("sql") or ""
+    if sql:
+        import re
+        # Handle backtick, double-quote, or unquoted identifiers: `cat`.`schema`.`table`
+        found = re.findall(r'(?:FROM|JOIN)\s+(?:[`"\w]+\.)*[`"]?(\w+)[`"]?', sql, re.IGNORECASE)
+        tables = ", ".join(dict.fromkeys(t.lower() for t in found if t.lower() not in
+                          ('select','where','as','on','and','or','t','t1','t2','sub','cte','ranked')))
+    db.execute(f"""
+        INSERT INTO {APP_SCHEMA}.genie_conversations
+          (conversation_id, question, answer_text, sql_generated, tables_used, row_count, elapsed_sec)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """, (turn.get("conversation_id"), turn.get("question"), turn.get("text"),
+          sql, tables, turn.get("row_count", 0), turn.get("elapsed")))
+
+
+def genie_stats() -> dict:
+    """Agent usage analytics from persisted Genie conversations."""
+    _ensure_genie_conversations_table()
+    rows = db.query(f"""
+        SELECT count(*) AS total_queries,
+               ROUND(AVG(elapsed_sec)::numeric, 1) AS avg_elapsed,
+               MAX(asked_at) AS last_asked
+        FROM {APP_SCHEMA}.genie_conversations
+    """)
+    stats = rows[0] if rows else {"total_queries": 0, "avg_elapsed": 0, "last_asked": None}
+    # Top tables queried
+    top_tables = db.query(f"""
+        SELECT unnest(string_to_array(tables_used, ', ')) AS tbl, count(*) AS n
+        FROM {APP_SCHEMA}.genie_conversations
+        WHERE tables_used IS NOT NULL AND tables_used <> ''
+        GROUP BY tbl ORDER BY n DESC LIMIT 5
+    """)
+    stats["top_tables"] = top_tables
+    return stats
+
+
+def genie_recent(limit: int = 5) -> list[dict]:
+    """Last N Genie questions — persistent memory proof."""
+    _ensure_genie_conversations_table()
+    return db.query(f"""
+        SELECT question, answer_text, tables_used, row_count,
+               ROUND(elapsed_sec::numeric, 1) AS elapsed_sec,
+               to_char(asked_at AT TIME ZONE 'UTC', 'Mon DD HH24:MI') AS asked_at
+        FROM {APP_SCHEMA}.genie_conversations
+        ORDER BY asked_at DESC LIMIT %s
+    """, (limit,))
+
+
 def latest_decision(property_id: int, month: int) -> dict | None:
     _ensure_decisions_table()
     rows = db.query(f"""

@@ -185,6 +185,20 @@ a{color:var(--blue);text-decoration:none}
 .genie-result-block{margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
 .genie-result-title{font-size:14px;font-weight:600;color:var(--navy);margin-bottom:6px}
 .genie-elapsed-tag{margin-top:10px;text-align:right;font-size:11.5px}
+.peak-tag{display:inline-block;background:#ff6d00;color:#fff;font-size:10.5px;padding:2px 8px;border-radius:10px;margin-left:4px;font-weight:600;vertical-align:middle}
+.month-tag b{color:var(--lava)}
+.box.wide{flex:1.5}
+.recent-queries{margin-top:16px}
+.recent-title{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--navy)}
+.recent-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:8px;margin-bottom:4px;transition:background .15s}
+.recent-row:hover{background:rgba(26,115,232,.06)}
+.recent-q{font-size:13.5px;color:var(--navy);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-right:12px}
+.recent-meta{font-size:11.5px;white-space:nowrap;flex-shrink:0}
+.thought-tag.sm{font-size:10px;padding:2px 6px}
+.cached-badge{display:inline-block;background:linear-gradient(135deg,#00a972,#2272b4);color:#fff;font-size:12px;font-weight:600;padding:5px 14px;border-radius:16px;margin-bottom:12px}
+.cached-footer{margin-top:12px;font-size:12px;display:flex;align-items:center;gap:10px}
+.reask-link{color:var(--lava);font-weight:600;text-decoration:none;font-size:12px}
+.reask-link:hover{text-decoration:underline}
 
 /* Genie questions list */
 .genie-questions ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
